@@ -1,0 +1,14 @@
+[Unit]
+Description=Pixel Agents — pixel-art office view of the AI agents
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/home/nithin/.local/bin/pixel-agents --port 8790
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/home/nithin/agent-team/logs/pixel-agents.log
+StandardError=append:/home/nithin/agent-team/logs/pixel-agents.log
+
+[Install]
+WantedBy=default.target
