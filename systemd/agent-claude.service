@@ -1,0 +1,6 @@
+[Unit]
+Description=Claude worker — one task in every registered project
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/nithin/agent-team/round.sh claude
