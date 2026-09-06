@@ -1,145 +1,131 @@
-# Agent Team
+# AGX
 
-Two AI workers (Claude Code and Antigravity) plan, build, review and remember
-work on all of your projects — on the quota you already pay for, with no API keys.
+**An operations console for a team of autonomous coding agents.**
 
----
+AGX runs Claude Code and Antigravity (`agy`) — plus optional free-tier API
+models — as a coordinated team that plans, builds, reviews, and commits work
+across every one of your projects. You watch and steer it from one dashboard;
+it keeps working on a schedule, remembers each project between sessions, and
+resumes on its own after a usage limit resets.
 
-## The loop
-
-    YOUR PLAN  ->  planning meeting  ->  backlog  ->  workers build  ->  graph memory
-         ^                                                                    |
-         +--------------------- feeds the next meeting ----------------------+
-
-1. You write what you want in `PLAN.md`.
-2. Three roles (Architect, Engineer, Reviewer) hold a **planning meeting** and
-   agree on concrete tasks. The whole discussion is saved for you to read.
-3. Claude and Antigravity pick tasks off the backlog and actually do them —
-   editing files, running tests, committing to git.
-4. What they learn goes into a **graph memory** every future run reads.
+It is built on the CLI subscriptions you already pay for. There are no per-token
+API keys to run the core team, and no cloud service in the loop — everything is
+local.
 
 ---
 
-## Features
+## Why it exists
 
-| Feature | What it means |
+A single coding agent forgets everything between sessions, works one task at a
+time, and sits idle whenever you are not driving it. AGX turns that into a team:
+
+- **Two agents that disagree.** Claude and `agy` hold a real planning meeting —
+  one proposes, the other reads the same code and pushes back — then commit to an
+  agreed task list. Two specialists reach better decisions than one generalist.
+- **Memory that survives sessions.** Every project keeps its own plan, progress
+  log, and a queryable knowledge graph of its own code, so the next run starts
+  where the last one stopped instead of from zero.
+- **Work that does not stop.** Systemd timers wake the team on a schedule. When a
+  usage limit resets, the agents pick up the backlog again with no prompting.
+
+---
+
+## What it does
+
+| Capability | How it works |
 |---|---|
-| **You set the plan** | `PLAN.md` per project. It outranks the agents' own ideas — both the planners and the workers obey it. |
-| **Agents discuss** | Architect proposes, Engineer objects, Reviewer decides. Not one model guessing. |
-| **You read every conversation** | Meetings and work logs are saved and readable in the GUI. |
-| **Per-project memory** | Each project has its own `PROJECT.md`, `PROGRESS.md`, backlog and history. |
-| **Graph memory** | Neo4j stores facts and commits per project; injected into every prompt. |
-| **Session continuity** | Agents resume their previous conversation per project (`--continue`). |
-| **No duplicate work** | Tasks are claimed (`- [~]`) and each project is locked to one agent at a time. |
-| **Runs by itself** | systemd timers wake the planner and both workers automatically. |
-| **Uses idle quota** | Timers fire after limit resets, so unused quota gets spent on real work. |
-| **No API keys** | CLIProxyAPI turns your subscriptions into a local OpenAI-compatible API. |
-| **Live GUI** | See who is working, on what, with the plan, tasks, meetings and commits. |
+| **Plan collaboratively** | A three-round meeting: one agent proposes, the other challenges from the real code, they agree a fine-grained task list. |
+| **Build autonomously** | Each agent claims one task, edits only inside the project, runs tests, and commits one change at a time. |
+| **Remember per project** | `PROJECT.md`, `PROGRESS.md`, and a Neo4j knowledge graph, all scoped to the project and carried in its repo. |
+| **Understand the codebase** | Graphify builds an AST-level graph — call relationships, hub functions, communities — so agents navigate instead of grepping blindly. |
+| **Choose the workers** | Per project, select which agents run and which model each uses, from the fastest cheap tier to the strongest reasoning model. |
+| **Fall back to free APIs** | With no Claude/agy quota, a free-tier worker (NVIDIA NIM or OpenRouter) handles the lighter tasks. |
+| **Add project tools** | Enable MCP servers per project (for example, offensive-security tooling for a CTF repo) without affecting any other project. |
+| **Assign roles** | Give each agent an engineering role — AI engineer, backend architect, code reviewer — that shapes how it argues in meetings. |
+| **Stay in control** | Start, stop, commit, push, and question the agents from the dashboard. One button stops everything. |
 
 ---
 
-## Set up a new project (30 seconds)
+## Architecture
 
-    bash ~/agent-team/add-project.sh /path/to/project     # must be a git repo
+```
+        ┌──────────────────────────────────────────────┐
+        │                Dashboard (:8765)              │
+        │   status · plans · live feed · model picker   │
+        │   start / stop · commit / push · ask an agent │
+        └───────────────┬──────────────────────────────┘
+                        │
+     ┌──────────────────┼──────────────────┐
+     ▼                  ▼                  ▼
+  meeting            workers            memory
+  (meet.sh)          (run.sh)           ┌─────────────────────┐
+  Claude ⇄ agy       Claude / agy /     │ PLAN · PROGRESS      │
+  agree tasks        free-API           │ Neo4j graph memory   │
+                     one commit each    │ Graphify code graph  │
+                                        └─────────────────────┘
+        scheduled by systemd timers · resumes after limit resets
+```
 
-Then write your plan:
-
-    nano /path/to/project/.agent-team/PLAN.md
-
-That is the whole setup. Everything else is automatic.
-
----
-
-## Daily commands
-
-    # REAL meeting: Claude and agy argue with each other, then agree the tasks
-    bash ~/agent-team/meet.sh /path/to/project
-    #   Round 1  Claude reads the code and proposes
-    #   Round 2  agy reads Claude's proposal + the code, and pushes back
-    #   Round 3  Claude weighs the objections and writes the agreed backlog
-    #   full transcript saved in .agent-team/discussions/
-
-    # faster single-model meeting (3 CrewAI roles via the proxy)
-    ~/agent-team/.venv/bin/python ~/agent-team/planner.py /path/to/project
-
-    # plan every project that is running low
-    bash ~/agent-team/plan.sh
-
-    # let the workers do a round
-    bash ~/agent-team/team.sh
-
-    # watch everything, read every conversation
-    python3 ~/agent-team/dashboard.py        # http://localhost:8765
-    #   plan, tasks, planning meetings, work logs, commits
-    #   the "Pixel Office" button opens the pixel-art view
-
-    # the pixel-art office (pixel-agents, watches your Claude sessions)
-    pixel-agents --port 8790                 # http://127.0.0.1:8790
-
-    # check every moving part is alive
-    bash ~/agent-team/health.sh
-
-    # teach the graph something permanent
-    ~/agent-team/.venv/bin/python ~/agent-team/graph/memory.py \
-        fact /path/to/project "Never break Qt5 compatibility"
+Every project carries its own state in a `.agent-team/` directory, so the memory
+travels with the repository and nothing is global.
 
 ---
 
-## Full automation
+## Quick start
 
-    cp ~/agent-team/systemd/*.service ~/agent-team/systemd/*.timer ~/.config/systemd/user/
-    systemctl --user daemon-reload
-    systemctl --user enable --now agent-proxy.service
-    systemctl --user enable --now agent-planner.timer agent-claude.timer agent-agy.timer
-    sudo loginctl enable-linger nithin
+```bash
+bash up.sh                      # start the dashboard, graph memory, and office
+bash add-project.sh /path/repo  # register a git repo (memory + graph auto-built)
+```
 
-| Unit | Cadence | Job |
-|---|---|---|
-| `agent-proxy.service` | always on | subscriptions -> local API on :8317 |
-| `agent-dashboard.service` | always on | dashboard on :8765 |
-| `agent-pixel.service` | always on | pixel-art office on :8790 |
-| `agent-planner.timer` | every 6h | refill backlogs that are running low |
-| `agent-claude.timer` | every 5h | Claude does a task in every project |
-| `agent-agy.timer` | every 2h | Antigravity does a task in every project |
+Then open **http://localhost:8765** and:
 
-Check and stop:
+1. Write what you want in the project's plan.
+2. Run a planning meeting — the agents agree the tasks.
+3. Start the agents, or let the timers run them.
 
-    systemctl --user list-timers
-    journalctl --user -u agent-claude.service -f
-    systemctl --user disable --now agent-claude.timer agent-agy.timer agent-planner.timer
+For continuous, hands-off operation:
+
+```bash
+cp systemd/*.service systemd/*.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now agent-dashboard.service agent-cycle.timer
+```
 
 ---
 
-## Files in a project
+## Command reference
 
-    <project>/.agent-team/
-      PLAN.md        <- YOU write this. The team obeys it.
-      PROJECT.md     what the project is (agents fill this in)
-      PROGRESS.md    running log of everything done
-      backlog.md     the task list  [ ] todo  [~] doing  [x] done
-      discussions/   saved planning meetings - read these
-      status-*.json  live state for the GUI
-
-Everything except the transient status files is committed with your repo, so the
-memory travels with the project.
+| Command | Purpose |
+|---|---|
+| `bash up.sh` | Start every service; print the links. |
+| `bash add-project.sh <repo>` | Register a project and build its memory + graph. |
+| `bash meet.sh <repo>` | Run a two-agent planning meeting. |
+| `bash cycle.sh` | Meet where work ran out, then let both agents work. |
+| `bash team.sh` | One work round by both agents across all projects. |
+| `bash stop.sh` | Stop all agents (escalates to force-kill). |
+| `bash health.sh` | Report what is up and what is down. |
+| `bash focus.sh <name>` | Point the team at one project, or `all`. |
+| `python3 mcp.py catalog` | List MCP servers you can enable per project. |
+| `python3 roles.py list` | List engineering roles you can assign. |
 
 ---
 
-## Where things live
+## Requirements
 
-    ~/agent-team          this system
-    ~/cliproxy            the proxy (subscriptions -> local API)
-    ~/agent-team/graph    Neo4j graph memory (docker compose)
-    http://localhost:8765 GUI
-    http://localhost:7474 Neo4j browser (neo4j / agentteam123)
+- Linux with systemd (developed on Arch)
+- Claude Code and/or Antigravity (`agy`) CLIs, authenticated
+- Docker (for the Neo4j graph memory)
+- Python 3.12 and `uv`
+- Optional: an NVIDIA NIM or OpenRouter key for the free-tier worker
 
 ---
 
 ## Safety
 
-- Workers auto-approve their own actions, so only register repos where
-  auto-commits are acceptable. A dedicated branch is safest:
-  `git checkout -b agent-work`
-- They never push. Nothing reaches GitHub unless you push it.
-- Everything is in git — review with `git log` and revert anything you dislike.
-- Vague plans produce vague work. Be specific in `PLAN.md`.
+- Agents run as your user — they cannot touch anything outside a project, and the
+  system prompt forbids destructive commands.
+- Everything is committed to git, so any change is reviewable and reversible.
+- Point the team at a dedicated branch until you trust it.
+- Commit messages are written as the repository owner would write them, with no
+  automated attribution added.
