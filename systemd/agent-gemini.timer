@@ -1,0 +1,10 @@
+[Unit]
+Description=Wake the Gemini worker every 2h
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=2h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
