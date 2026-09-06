@@ -1,0 +1,13 @@
+[Unit]
+Description=CLIProxyAPI — subscriptions as an OpenAI-compatible API on :8317
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nithin/cliproxy
+ExecStart=/home/nithin/cliproxy/cli-proxy-api -config /home/nithin/cliproxy/config.yaml
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
