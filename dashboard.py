@@ -321,29 +321,29 @@ def allowed(path):
 
 
 CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;500;700&display=swap');
 :root{
   /* AGX operations console. Grounded in observatory / telemetry, not arcade:
      a genuinely blue void, one periwinkle accent for anything interactive,
      gold reserved strictly for live telemetry, and two muted agent hues.
      Colour is scarce so a lit pixel always means something. */
-  /* Batman: Gotham near-black, cold steel greys, and bat-signal yellow as the
-     one emblem colour. Yellow is scarce - it marks what is live or actionable,
-     like a signal cut into the night; a cold slate blue is the second agent. */
-  --bg:#08090c; --surface:#0f1116; --surface2:#151821; --raise:#1c202b;
-  --edge:#1b1e27; --edge2:#323642;
-  --ink:#edeff2; --dim:#98a0ac; --faint:#59606e;
-  --accent:#ffce1f;                         /* bat-signal yellow: interactive hue */
-  --green:#ffce1f; --green-d:#33290a;       /* alias kept for downstream rules */
-  --live:#ffce1f;                           /* yellow: live telemetry */
-  --claude:#ffce1f;                          /* the signal */
-  --agy:#6ea6d8;                             /* cold Gotham steel */
-  --run:#ffce1f; --wait:#6ea6d8; --stall:#ffb01f; --idle:#59606e; --pause:#2b2f3a;
-  --danger:#ff5252; --violet:#9c8cff;
-  --r:5px;                                  /* one radius, applied by hierarchy */
-  --sh:0 1px 0 rgba(255,255,255,.03), 0 14px 34px -18px rgba(0,0,0,.85);
-  --glow:0 0 0 1px var(--accent), 0 0 20px -5px var(--accent);
-  --px:'Orbitron',ui-sans-serif,sans-serif;        /* display: wordmark + headers */
+  /* Arcade pixel: deep navy-black with bright 8-bit inks. Green is the primary
+     signal, coral and cyan are the two agents. Kept sparse so a lit pixel
+     always reads as a live element, not decoration. */
+  --bg:#0b0e18; --surface:#12172480; --surface2:#161c2c; --raise:#1d2438;
+  --edge:#1f2740; --edge2:#33406a;
+  --ink:#eef2fb; --dim:#9aa6c6; --faint:#5f6b8c;
+  --accent:#3df5a0;                         /* arcade green: interactive hue */
+  --green:#3df5a0; --green-d:#0c3a28;       /* alias kept for downstream rules */
+  --live:#3df5a0;                           /* green: live telemetry */
+  --claude:#ff7a6b;                          /* coral */
+  --agy:#4fd6e8;                             /* cyan */
+  --run:#3df5a0; --wait:#4fd6e8; --stall:#ffd23f; --idle:#5f6b8c; --pause:#2a3350;
+  --danger:#ff5f7e; --violet:#b58cff;
+  --r:6px;                                  /* one radius, applied by hierarchy */
+  --sh:0 1px 0 rgba(255,255,255,.03), 0 12px 30px -16px rgba(0,0,0,.8);
+  --glow:0 0 0 1px var(--accent), 0 0 18px -5px var(--accent);
+  --px:'Press Start 2P',ui-monospace,monospace;   /* pixel wordmark only */
   --mo:'JetBrains Mono',ui-monospace,monospace;    /* the whole system */
 }
 *{box-sizing:border-box}
@@ -368,9 +368,8 @@ svg{width:14px;height:14px;flex:none;stroke-width:1.75;fill:none;stroke:currentC
 /* header */
 header{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;padding:4px 2px 12px;
   margin-bottom:14px;border-bottom:1px solid var(--edge)}
-h1{font:900 22px/1 var(--px);margin:0;color:var(--ink);letter-spacing:5px;
-  text-transform:uppercase}
-h1 i{font-style:normal;color:var(--live);animation:bl 1.15s steps(2) infinite}
+h1{font:14px/1 var(--px);margin:0;color:var(--accent);letter-spacing:2px}
+h1 i{font-style:normal;color:var(--ink);animation:bl 1.15s steps(2) infinite}
 @keyframes bl{50%{opacity:0}}
 /* Glitch: two offset copies flicker on the red and blue channels, like
    chromatic aberration on a CRT. Long cycle so it reads as an artefact,
@@ -415,7 +414,7 @@ button[disabled]{opacity:.35;cursor:not-allowed}
   grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
 .hud>div{padding:12px 16px;border-left:3px solid var(--edge2)}
 .hud>div.hot{border-left-color:var(--green)}
-.hud b{display:block;font:700 20px/1.05 var(--px);letter-spacing:.5px}
+.hud b{display:block;font:700 18px/1.05 var(--mo)}
 .hud span{font-size:15px;color:var(--faint);letter-spacing:.4px}
 /* live activity feed */
 .feedbox{margin-bottom:22px;overflow:hidden}
@@ -589,7 +588,7 @@ label{display:block;font:600 11px/1.4 var(--mo);color:var(--faint);margin-bottom
 .projview .pv-actions{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 6px}
 .projview .pv-cols{display:grid;gap:22px;grid-template-columns:1fr 1fr;margin-top:8px}
 @media(max-width:820px){.projview .pv-cols{grid-template-columns:1fr}}
-.projview h4{font:700 12px/1.3 var(--px);letter-spacing:1px;text-transform:uppercase;
+.projview h4{font:700 12px/1.3 var(--mo);letter-spacing:1px;text-transform:uppercase;
   color:var(--accent);margin:18px 0 9px;padding-bottom:6px;border-bottom:1px solid var(--edge)}
 .projview .pv-plan{white-space:pre-wrap;background:var(--bg);border:1px solid var(--edge);
   border-radius:var(--r);padding:13px 15px;font-size:14px;line-height:1.55;color:var(--dim)}
