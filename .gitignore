@@ -1,0 +1,20 @@
+# Runtime state - regenerated, machine-specific, or secret
+.venv/
+logs/
+vendor/
+graphify-out/
+workspace/
+settings.json
+config.env
+projects.conf
+.lock
+.queue-*
+
+# Never commit the reference clones - they are other people's repos
+repos/
+multi-agent/
+
+__pycache__/
+*.pyc
+.DS_Store
+dashboard.py.bak
