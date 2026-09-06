@@ -1,0 +1,13 @@
+[Unit]
+Description=Agent Team dashboard — plans, meetings, tasks and logs
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nithin/agent-team
+ExecStart=/home/nithin/agent-team/.venv/bin/python /home/nithin/agent-team/dashboard.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
