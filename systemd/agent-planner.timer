@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the architect every 6h so the workers never run out of tasks
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
