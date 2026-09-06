@@ -256,6 +256,11 @@ def collect():
             todo = re.findall(r"^- \[ \] *(.*)$", t, re.M)
             e["tasks"]["todo"] = len(todo)
             e["next_task"] = todo[0] if todo else ""
+            # Full task list for the project detail window (state + text).
+            e["all_tasks"] = [
+                {"state": st.strip() or " ", "text": txt}
+                for st, txt in re.findall(r"^- \[([ x~])\] *(.*)$", t, re.M)
+            ][:60]
 
         pf = os.path.join(mem, "PROGRESS.md")
         if os.path.exists(pf):
@@ -322,22 +327,22 @@ CSS = """
      a genuinely blue void, one periwinkle accent for anything interactive,
      gold reserved strictly for live telemetry, and two muted agent hues.
      Colour is scarce so a lit pixel always means something. */
-  /* Venom: glossy symbiote black, bone-white ink, toxic-green and symbiote
-     purple as the two live inks. White is the emblem, colour is the ooze -
-     used sparingly so a lit element reads like a symbiote tendril. */
-  --bg:#050506; --surface:#0d0d11; --surface2:#131318; --raise:#1a1a22;
-  --edge:#1d1d25; --edge2:#34343f;
-  --ink:#f4f4f8; --dim:#9a9aa8; --faint:#5b5b68;
-  --accent:#b14dff;                         /* symbiote purple: interactive hue */
-  --green:#b14dff; --green-d:#1e0f36;       /* alias kept for downstream rules */
-  --live:#86ff3c;                           /* toxic green: live telemetry */
-  --claude:#f0f0f6;                          /* symbiote white */
-  --agy:#b14dff;                             /* symbiote purple */
-  --run:#86ff3c; --wait:#b14dff; --stall:#d6ff3c; --idle:#5b5b68; --pause:#2e2e3a;
-  --danger:#ff3b57; --violet:#c46bff;
-  --r:6px;                                  /* one radius, applied by hierarchy */
-  --sh:0 1px 0 rgba(255,255,255,.04), 0 12px 34px -16px rgba(134,255,60,.18);
-  --glow:0 0 0 1px var(--accent), 0 0 22px -4px var(--accent);
+  /* Batman: Gotham near-black, cold steel greys, and bat-signal yellow as the
+     one emblem colour. Yellow is scarce - it marks what is live or actionable,
+     like a signal cut into the night; a cold slate blue is the second agent. */
+  --bg:#08090c; --surface:#0f1116; --surface2:#151821; --raise:#1c202b;
+  --edge:#1b1e27; --edge2:#323642;
+  --ink:#edeff2; --dim:#98a0ac; --faint:#59606e;
+  --accent:#ffce1f;                         /* bat-signal yellow: interactive hue */
+  --green:#ffce1f; --green-d:#33290a;       /* alias kept for downstream rules */
+  --live:#ffce1f;                           /* yellow: live telemetry */
+  --claude:#ffce1f;                          /* the signal */
+  --agy:#6ea6d8;                             /* cold Gotham steel */
+  --run:#ffce1f; --wait:#6ea6d8; --stall:#ffb01f; --idle:#59606e; --pause:#2b2f3a;
+  --danger:#ff5252; --violet:#9c8cff;
+  --r:5px;                                  /* one radius, applied by hierarchy */
+  --sh:0 1px 0 rgba(255,255,255,.03), 0 14px 34px -18px rgba(0,0,0,.85);
+  --glow:0 0 0 1px var(--accent), 0 0 20px -5px var(--accent);
   --px:'Orbitron',ui-sans-serif,sans-serif;        /* display: wordmark + headers */
   --mo:'JetBrains Mono',ui-monospace,monospace;    /* the whole system */
 }
@@ -347,14 +352,14 @@ body{margin:0;padding:22px 26px 60px;
      corners, the way a Spider-Verse frame is lit magenta on one side, cyan on
      the other. The dot grid is fixed and low-contrast so text stays readable. */
   background:
-    radial-gradient(900px 480px at 88% -10%,rgba(177,77,255,.12),transparent 60%),
-    radial-gradient(900px 480px at 6% 4%,rgba(134,255,60,.09),transparent 58%),
+    radial-gradient(1000px 520px at 84% -12%,rgba(255,206,31,.08),transparent 60%),
+    radial-gradient(820px 460px at 4% 2%,rgba(110,166,216,.06),transparent 58%),
     var(--bg);
   color:var(--ink);font:13px/1.45 var(--mo);font-variant-numeric:tabular-nums;
   letter-spacing:.1px;min-height:100vh;position:relative}
 body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
-  opacity:.5;
-  background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1.4px);
+  opacity:.22;
+  background-image:radial-gradient(rgba(255,255,255,.035) 1px,transparent 1.5px);
   background-size:7px 7px}
 .px{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r);
   box-shadow:var(--sh)}
@@ -575,7 +580,28 @@ label{display:block;font:600 11px/1.4 var(--mo);color:var(--faint);margin-bottom
 #ovh{display:flex;justify-content:space-between;align-items:center;gap:10px;
   padding:13px 16px;border-bottom:1px solid var(--edge2);font:600 11.5px/1.4 var(--mo);
   color:var(--green)}
-#ovc{padding:18px;overflow:auto;white-space:pre-wrap;font-size:18px;color:var(--dim)}
+#ovc{padding:18px;overflow:auto;white-space:pre-wrap;font-size:15px;color:var(--dim)}
+/* project detail window - the big readable view */
+#ovb{max-width:1180px;width:96vw}
+.projview{white-space:normal!important;font-size:14px}
+.projview .pv-path{color:var(--faint);font-size:13px;margin-bottom:10px;word-break:break-all}
+.projview .pv-agents{margin:12px 0}
+.projview .pv-actions{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 6px}
+.projview .pv-cols{display:grid;gap:22px;grid-template-columns:1fr 1fr;margin-top:8px}
+@media(max-width:820px){.projview .pv-cols{grid-template-columns:1fr}}
+.projview h4{font:700 12px/1.3 var(--px);letter-spacing:1px;text-transform:uppercase;
+  color:var(--accent);margin:18px 0 9px;padding-bottom:6px;border-bottom:1px solid var(--edge)}
+.projview .pv-plan{white-space:pre-wrap;background:var(--bg);border:1px solid var(--edge);
+  border-radius:var(--r);padding:13px 15px;font-size:14px;line-height:1.55;color:var(--dim)}
+.projview .pv-tasks{display:flex;flex-direction:column;gap:5px}
+.projview .titem{display:flex;gap:9px;align-items:flex-start;padding:7px 10px;
+  background:var(--bg);border:1px solid var(--edge);border-radius:var(--r);font-size:13.5px}
+.projview .titem .tm{flex:none;width:14px;text-align:center}
+.projview .t-done{color:var(--faint)} .projview .t-done .tm{color:var(--run)}
+.projview .t-doing{border-color:var(--stall)} .projview .t-doing .tm{color:var(--stall)}
+.projview .t-todo .tm{color:var(--faint)}
+.projview .pv-commits code{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.projview .muted{color:var(--faint);font-size:13px;padding:4px 0}
 .empty{padding:46px;text-align:center;color:var(--dim)}
 @media (max-width:600px){#sub{margin-left:0;width:100%}.mini{grid-template-columns:repeat(2,1fr)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -652,6 +678,7 @@ function toggle(n,k){OPEN[n+k]=!OPEN[n+k];const el=document.getElementById(k+'-'
  if(el)el.hidden=!OPEN[n+k]}
 async function open_(f,t){const r=await fetch('/file?p='+encodeURIComponent(f));
  document.getElementById('ovt').textContent=t;
+ document.getElementById('ovc').className='';
  document.getElementById('ovc').textContent=await r.text();
  document.getElementById('ov').classList.add('on');document.getElementById('ovx').focus()}
 function close_(){document.getElementById('ov').classList.remove('on')}
@@ -773,7 +800,9 @@ function card(p){
  const detailOpen=OPEN[p.name+'det'];
  return `<section class="px card ${st}">
   <div class="chead">
-   <h2 class="pname">${n}</h2>
+   <h2 class="pname" role="button" tabindex="0" onclick="openProject('${n}')"
+     onkeydown="if(event.key==='Enter')openProject('${n}')"
+     title="Open ${n} in full">${n}</h2>
    <div class="badge ${st}"><span class="dot" aria-hidden="true"></span>${esc(p.status_text)}</div>
   </div>
   <div class="ppath">${esc(p.path)}</div>
@@ -842,7 +871,52 @@ function card(p){
   </div></div>
  </section>`;
 }
-let MODELS={},SET={};
+let MODELS={},SET={},DATA=[];
+// Full-screen detail for one project - the cards are a summary; this is the
+// place to actually read the plan, tasks, meetings, logs and commits.
+function openProject(name){
+ const p=DATA.find(x=>x.name===name); if(!p)return;
+ const t=p.tasks, g=p.github||{};
+ const links=(arr,ic)=>arr.length?arr.map(x=>`<a class="ln" role="button" tabindex="0"
+   onclick="open_('${encodeURIComponent(x.file)}','${esc(x.label)}')">${ic}<span>${esc(x.label)}</span></a>`).join(''):'<div class="muted">none yet</div>';
+ const tasksBlock=(p.all_tasks||[]).map(x=>{
+   const cls=x.state==='x'?'t-done':x.state==='~'?'t-doing':'t-todo';
+   const mark=x.state==='x'?'✓':x.state==='~'?'▶':'○';
+   return `<div class="titem ${cls}"><span class="tm">${mark}</span><span>${esc(x.text)}</span></div>`;
+ }).join('')||'<div class="muted">no tasks — run a meeting</div>';
+ document.getElementById('ovt').textContent=p.name;
+ document.getElementById('ovc').className='projview';
+ document.getElementById('ovc').innerHTML=`
+  <div class="pv-path">${esc(p.path)}</div>
+  ${ghBar(p)}
+  <div class="pv-agents">${agentRow('claude',p.agents.claude)}${agentRow('agy',p.agents.agy)}</div>
+  <div class="pv-actions">
+   <button class="b-claude" onclick="act('run_claude','${esc(p.name)}')">${I.play}Claude</button>
+   <button class="b-agy" onclick="act('run_agy','${esc(p.name)}')">${I.play}agy</button>
+   <button class="b-go" onclick="act('run_both','${esc(p.name)}')">${I.play}Both</button>
+   <button class="b-alt" onclick="act('meet','${esc(p.name)}')">${I.chat}Meeting</button>
+   <button class="b-danger" onclick="act('stop','${esc(p.name)}')">${I.stop}Stop</button>
+   ${g.dirty?`<button onclick="commitNow('${esc(p.name)}')">Commit ${g.dirty}</button>`:''}
+   ${g.ahead?`<button class="b-go" onclick="push('${esc(p.name)}')">Push ${g.ahead}</button>`:''}
+   ${p.codegraph&&p.codegraph.built?`<a class="btn" href="/graph?p=${encodeURIComponent(p.name)}" target="_blank" rel="noopener">${I.graph}View graph (${p.codegraph.nodes})</a>`:''}
+  </div>
+  <div class="pv-cols">
+   <div>
+    <h4>The plan</h4>
+    <div class="pv-plan">${p.plan?esc(p.plan):'<span class="muted">No plan yet. Press Plan on the card to write one.</span>'}</div>
+    <h4>Tasks (${t.done} done, ${t.doing} doing, ${t.todo} left)</h4>
+    <div class="pv-tasks">${tasksBlock}</div>
+   </div>
+   <div>
+    <h4>Recent commits</h4>
+    <div class="pv-commits">${(p.commits||[]).slice(0,10).map(c=>`<code>${esc(c)}</code>`).join('')||'<div class="muted">none</div>'}</div>
+    <h4>Planning meetings</h4>${links(p.talks,I.chat)}
+    <h4>Work logs</h4>${links(p.logs,I.doc)}
+   </div>
+  </div>`;
+ document.getElementById('ov').classList.add('on');
+ document.getElementById('ovx').focus();
+}
 function modelBar(){
  const pick=(a)=>{
   const cur=SET['model_'+a]||'';
@@ -870,7 +944,7 @@ function commitNow(n){
 }
 async function tick(){
  let raw;try{raw=await (await fetch('/api')).json()}catch(e){return}
- const d=raw.projects||[];
+ const d=raw.projects||[];DATA=d;
  MODELS=raw.models||{};SET=raw.settings||{};
  modelBar();
  const el=document.getElementById('grid');
