@@ -1,0 +1,7 @@
+[Unit]
+Description=Agent team full cycle — meet when out of work, then both agents work
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/nithin/agent-team/cycle.sh
+TimeoutStartSec=7200
