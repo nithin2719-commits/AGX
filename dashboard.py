@@ -355,7 +355,7 @@ body{margin:0;padding:22px 26px 60px;
     radial-gradient(1000px 520px at 84% -12%,rgba(255,206,31,.08),transparent 60%),
     radial-gradient(820px 460px at 4% 2%,rgba(110,166,216,.06),transparent 58%),
     var(--bg);
-  color:var(--ink);font:13px/1.45 var(--mo);font-variant-numeric:tabular-nums;
+  color:var(--ink);font:12.5px/1.45 var(--mo);font-variant-numeric:tabular-nums;
   letter-spacing:.1px;min-height:100vh;position:relative}
 body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
   opacity:.22;
@@ -457,7 +457,7 @@ button[disabled]{opacity:.35;cursor:not-allowed}
 .g-waiting{color:var(--wait)} .g-idle{color:var(--idle)} .g-paused{color:var(--pause)}
 /* THE FIX: auto-fit makes a single card stretch the full width instead of
    leaving dead space; wider min so cards use a 1440p screen properly. */
-.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,620px),1fr))}
+.grid{display:grid;gap:14px;grid-template-columns:minmax(0,1180px);justify-content:center}
 .card{padding:0;overflow:hidden}
 .card.running{border-color:var(--run);box-shadow:var(--sh),var(--glow)}
 .card.stalled{border-color:var(--stall)}
@@ -527,13 +527,15 @@ select:focus{border-color:var(--green);outline:none}
 .agent.on{border-color:var(--run);box-shadow:inset 3px 0 0 var(--run)}
 .who{font:600 11px/1.3 var(--mo);width:54px;flex:none}
 .who.claude{color:var(--claude)} .who.agy{color:var(--agy)}
-.what{font-size:16px;color:var(--dim);flex:1;overflow:hidden;text-overflow:ellipsis;
+.what{font-size:13px;color:var(--dim);flex:1;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
 /* progress */
 .bar{display:flex;gap:2px;height:12px;margin:12px 0 6px}
 .bar i{flex:1;background:var(--edge);box-shadow:inset 0 0 0 1px #000}
 .bar i.d{background:var(--run)} .bar i.w{background:var(--stall)}
-.counts{font-size:16px;color:var(--faint);margin-bottom:12px}
+.counts{font-size:13px;color:var(--faint);margin-bottom:11px}
+.counts b{color:var(--ink);font-weight:700}
+.counts i{display:inline-block;width:16px}
 .mini{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:12px 0}
 .mini div{background:var(--bg);border:1px solid var(--edge);padding:9px 2px;text-align:center}
 .mini b{display:block;font:13px/1.3 var(--mo)}
@@ -554,8 +556,8 @@ input[type=text],textarea{width:100%;background:var(--bg);color:var(--ink);
 input[type=text]:focus,textarea:focus{border-color:var(--green)}
 textarea{min-height:150px;resize:vertical}
 label{display:block;font:600 11px/1.4 var(--mo);color:var(--faint);margin-bottom:8px}
-.plan{background:var(--bg);border-left:3px solid var(--agy);padding:11px 13px;
-  font-size:16px;line-height:1.5;white-space:pre-wrap;max-height:190px;overflow:auto;
+.plan{background:var(--bg);border-left:3px solid var(--agy);padding:10px 12px;
+  font-size:13px;line-height:1.5;white-space:pre-wrap;max-height:220px;overflow:auto;
   color:var(--dim)}
 .plan.noplan{border-left-color:var(--stall);color:var(--faint)}
 /* chat */
@@ -690,7 +692,7 @@ function agentRow(a,s){
   ${on?'<span class="pulse" aria-hidden="true"></span>':'<span class="pulse off" aria-hidden="true"></span>'}
   <span class="who ${a}">${NAME[a]}</span>
   <span class="what" title="${esc(s?(s.task||st):st)}">${esc(st.toUpperCase())}${
-   s&&s.task?' &middot; '+esc(s.task):''}</span>
+   s&&s.task?'  '+esc(s.task):''}</span>
   ${on?'<span class="dots"><i></i><i></i><i></i></span>':''}</div>`;
 }
 // A live strip of what the whole team is doing right now, so you never have to
@@ -809,7 +811,7 @@ function card(p){
   <div class="cbody"><div class="colL">
   ${agentRow('claude',p.agents.claude)}${agentRow('agy',p.agents.agy)}
   ${bar(t)}
-  <div class="counts">${t.done} done &middot; ${t.doing} doing &middot; ${t.todo} left</div>
+  <div class="counts"><b>${t.done}</b> done<i></i><b>${t.doing}</b> doing<i></i><b>${t.todo}</b> left</div>
   <div class="mini">
    <div><b style="color:var(--claude)">${w.claude||0}</b><span>claude</span></div>
    <div><b style="color:var(--agy)">${w.agy||0}</b><span>agy</span></div>
@@ -853,7 +855,7 @@ function card(p){
     <button class="b-claude" onclick="ask('${n}','claude')">ASK CLAUDE</button>
     <button class="b-agy" onclick="ask('${n}','agy')">ASK AGY</button>
     <button class="b-alt" onclick="explain('${n}')">WHAT HAPPENED?</button>
-    <span class="hint">ctrl+enter = ask claude &middot; replies take 10-60s</span>
+    <span class="hint">ctrl+enter asks claude, replies take 10-60s</span>
    </div>
   </div>
   <div id="pw-${n}" ${OPEN[p.name+'pw']?'':'hidden'}>
