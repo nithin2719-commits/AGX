@@ -1,0 +1,17 @@
+services:
+  neo4j:
+    image: neo4j:5.26
+    container_name: agentteam-neo4j
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7474:7474"   # browser UI
+      - "127.0.0.1:7687:7687"   # bolt (Graphiti connects here)
+    environment:
+      NEO4J_AUTH: neo4j/agentteam123
+      NEO4J_server_memory_heap_max__size: 1G
+      NEO4J_server_memory_pagecache_size: 512M
+    volumes:
+      - neo4j_data:/data
+
+volumes:
+  neo4j_data:
