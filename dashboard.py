@@ -316,43 +316,56 @@ def allowed(path):
 
 
 CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
 :root{
   /* AGX operations console. Grounded in observatory / telemetry, not arcade:
      a genuinely blue void, one periwinkle accent for anything interactive,
      gold reserved strictly for live telemetry, and two muted agent hues.
      Colour is scarce so a lit pixel always means something. */
-  --bg:#0a0d16; --surface:#111524; --surface2:#161b2e; --raise:#1e2540;
-  --edge:#20263b; --edge2:#313a5c;
-  --ink:#e9edf9; --dim:#98a2c0; --faint:#5f6786;
-  --accent:#7b93ff;                         /* periwinkle: the one interactive hue */
-  --green:#7b93ff; --green-d:#1a2140;       /* alias kept for downstream rules */
-  --live:#ffc65c;                           /* gold: reserved for active telemetry */
-  --claude:#ff8f6b;                         /* warm signal */
-  --agy:#57c8c1;                            /* cool signal */
-  --run:#ffc65c; --wait:#7b93ff; --stall:#ffb545; --idle:#5f6786; --pause:#3a4160;
-  --danger:#ff6b8a; --violet:#b28dff;
-  --r:7px;                                  /* one radius, applied by hierarchy */
-  --sh:0 1px 0 rgba(255,255,255,.03), 0 8px 24px -12px rgba(0,0,0,.7);
-  --glow:0 0 0 1px var(--accent), 0 0 18px -4px var(--accent);
-  --px:'Press Start 2P',ui-monospace,monospace;   /* wordmark only */
+  /* Venom: glossy symbiote black, bone-white ink, toxic-green and symbiote
+     purple as the two live inks. White is the emblem, colour is the ooze -
+     used sparingly so a lit element reads like a symbiote tendril. */
+  --bg:#050506; --surface:#0d0d11; --surface2:#131318; --raise:#1a1a22;
+  --edge:#1d1d25; --edge2:#34343f;
+  --ink:#f4f4f8; --dim:#9a9aa8; --faint:#5b5b68;
+  --accent:#b14dff;                         /* symbiote purple: interactive hue */
+  --green:#b14dff; --green-d:#1e0f36;       /* alias kept for downstream rules */
+  --live:#86ff3c;                           /* toxic green: live telemetry */
+  --claude:#f0f0f6;                          /* symbiote white */
+  --agy:#b14dff;                             /* symbiote purple */
+  --run:#86ff3c; --wait:#b14dff; --stall:#d6ff3c; --idle:#5b5b68; --pause:#2e2e3a;
+  --danger:#ff3b57; --violet:#c46bff;
+  --r:6px;                                  /* one radius, applied by hierarchy */
+  --sh:0 1px 0 rgba(255,255,255,.04), 0 12px 34px -16px rgba(134,255,60,.18);
+  --glow:0 0 0 1px var(--accent), 0 0 22px -4px var(--accent);
+  --px:'Orbitron',ui-sans-serif,sans-serif;        /* display: wordmark + headers */
   --mo:'JetBrains Mono',ui-monospace,monospace;    /* the whole system */
 }
 *{box-sizing:border-box}
-body{margin:0;padding:22px 26px 60px;background:
-    radial-gradient(1100px 520px at 82% -8%,rgba(123,147,255,.06),transparent 62%),
+body{margin:0;padding:22px 26px 60px;
+  /* halftone Ben-Day dots + two coloured light sources bleeding in from the
+     corners, the way a Spider-Verse frame is lit magenta on one side, cyan on
+     the other. The dot grid is fixed and low-contrast so text stays readable. */
+  background:
+    radial-gradient(900px 480px at 88% -10%,rgba(177,77,255,.12),transparent 60%),
+    radial-gradient(900px 480px at 6% 4%,rgba(134,255,60,.09),transparent 58%),
     var(--bg);
-  color:var(--ink);font:14px/1.5 var(--mo);font-variant-numeric:tabular-nums;
-  letter-spacing:.1px;min-height:100vh}
+  color:var(--ink);font:13px/1.45 var(--mo);font-variant-numeric:tabular-nums;
+  letter-spacing:.1px;min-height:100vh;position:relative}
+body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+  opacity:.5;
+  background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1.4px);
+  background-size:7px 7px}
 .px{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r);
   box-shadow:var(--sh)}
 svg{width:14px;height:14px;flex:none;stroke-width:1.75;fill:none;stroke:currentColor;
   stroke-linecap:round;stroke-linejoin:round}
 /* header */
-header{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;padding:6px 4px 18px;
-  margin-bottom:20px;border-bottom:1px solid var(--edge)}
-h1{font:16px/1 var(--px);margin:0;color:var(--ink);letter-spacing:2px}
-h1 i{font-style:normal;color:var(--accent);animation:bl 1.15s steps(2) infinite}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;padding:4px 2px 12px;
+  margin-bottom:14px;border-bottom:1px solid var(--edge)}
+h1{font:900 22px/1 var(--px);margin:0;color:var(--ink);letter-spacing:5px;
+  text-transform:uppercase}
+h1 i{font-style:normal;color:var(--live);animation:bl 1.15s steps(2) infinite}
 @keyframes bl{50%{opacity:0}}
 /* Glitch: two offset copies flicker on the red and blue channels, like
    chromatic aberration on a CRT. Long cycle so it reads as an artefact,
@@ -375,7 +388,7 @@ h1 i{font-style:normal;color:var(--accent);animation:bl 1.15s steps(2) infinite}
 #sub{color:var(--faint);font-size:17px;margin-left:auto}
 
 /* buttons */
-button,.btn{font:500 12.5px/1 var(--mo);min-height:38px;padding:0 14px;
+button,.btn{font:500 12.5px/1 var(--mo);min-height:32px;padding:0 12px;
   display:inline-flex;align-items:center;justify-content:center;gap:7px;
   background:var(--raise);color:var(--ink);border:1px solid var(--edge2);
   border-radius:var(--r);cursor:pointer;text-decoration:none;letter-spacing:.2px;
@@ -397,14 +410,14 @@ button[disabled]{opacity:.35;cursor:not-allowed}
   grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
 .hud>div{padding:12px 16px;border-left:3px solid var(--edge2)}
 .hud>div.hot{border-left-color:var(--green)}
-.hud b{display:block;font:700 22px/1.1 var(--mo)}
+.hud b{display:block;font:700 20px/1.05 var(--px);letter-spacing:.5px}
 .hud span{font-size:15px;color:var(--faint);letter-spacing:.4px}
 /* live activity feed */
 .feedbox{margin-bottom:22px;overflow:hidden}
 .feedhead{font:600 11.5px/1.4 var(--mo);letter-spacing:.4px;color:var(--faint);
   padding:11px 16px;border-bottom:1px solid var(--edge);background:var(--surface2)}
 
-.fline{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:10px 16px;
+.fline{padding:7px 14px;
   border-bottom:1px solid var(--edge);font-size:16px;
   animation:slidein .25s ease-out}
 .fline:last-child{border-bottom:0}
@@ -432,7 +445,7 @@ button[disabled]{opacity:.35;cursor:not-allowed}
 @keyframes bob{0%,60%,100%{opacity:.25;transform:translateY(0)}
   30%{opacity:1;transform:translateY(-3px)}}
 /* group heading */
-.group{display:flex;align-items:center;gap:12px;margin:26px 0 12px;
+.group{display:flex;align-items:center;gap:12px;margin:22px 0 11px;
   font:600 12px/1.4 var(--mo);letter-spacing:.4px}
 
 .group hr{flex:1;border:0;border-top:1px dashed var(--edge2)}
@@ -446,7 +459,7 @@ button[disabled]{opacity:.35;cursor:not-allowed}
 .card.stalled{border-color:var(--stall)}
 .card.paused{opacity:.55}
 /* card head bar */
-.chead{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;
+.chead{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:9px 14px;
   background:var(--surface2);border-bottom:1px solid var(--edge2)}
 .pname{font:700 15px/1.3 var(--mo);margin:0;color:var(--ink)}
 
@@ -489,7 +502,7 @@ select{flex:1;background:var(--bg);color:var(--ink);border:1px solid var(--edge2
   padding:9px 10px;font-family:var(--mo);font-size:17px;min-height:40px;cursor:pointer}
 select:focus{border-color:var(--green);outline:none}
 .notewrap{display:flex;flex-direction:column;gap:7px}
-#note{min-height:76px;resize:vertical}
+#note{min-height:52px;resize:vertical}
 /* add-project scanner */
 .found{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:11px 12px;
   border:1px solid var(--edge);margin-bottom:7px;background:var(--bg)}
@@ -503,7 +516,7 @@ select:focus{border-color:var(--green);outline:none}
 .cbody{display:grid;gap:0;grid-template-columns:1fr}
 @media(min-width:900px){.cbody{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .cbody>.colL{border-right:1px dashed var(--edge)}}
-.colL,.colR{padding:14px 16px;min-width:0}
+.colL,.colR{padding:12px 14px;min-width:0}
 /* agents */
 .agent{display:flex;align-items:center;gap:10px;padding:9px 11px;margin-bottom:7px;
   background:var(--bg);border:1px solid var(--edge)}
