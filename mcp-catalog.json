@@ -1,0 +1,12 @@
+{
+  "hexstrike": {
+    "label": "HexStrike (offensive security)",
+    "for": "cyber, ctf, pentest, security",
+    "server": {
+      "type": "stdio",
+      "command": "/home/nithin/tools/hexstrike-ai/hexstrike-env/bin/python3",
+      "args": ["/home/nithin/tools/hexstrike-ai/hexstrike_mcp.py", "--server", "http://127.0.0.1:8888"],
+      "env": {}
+    }
+  }
+}
