@@ -1,0 +1,6 @@
+[Unit]
+Description=Autonomous Gemini worker (one backlog task)
+
+[Service]
+Type=oneshot
+ExecStart=/home/nithin/agent-team/run.sh gemini
