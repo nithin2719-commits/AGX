@@ -1,0 +1,10 @@
+[Unit]
+Description=Wake the Claude worker every 5h (matches the rolling limit reset)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
