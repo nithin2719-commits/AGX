@@ -54,6 +54,13 @@ fi
 
 [ -f "$BACKLOG" ] || { status idle "no backlog file"; echo "no backlog: $BACKLOG"; exit 0; }
 
+# Per-project agent selection. If .agent-team/agents contains a list, only those
+# agents may work here; otherwise every agent is allowed (backwards compatible).
+if [ -s "$MEM/agents" ] && ! grep -qxF "$AGENT" "$MEM/agents"; then
+  echo "[$STAMP] $NAME: $AGENT is not enabled for this project, skipping"
+  exit 0
+fi
+
 # Claude and agy are the expensive tier: they take (L) and untagged tasks and
 # leave (S) small ones to the free OpenRouter models.
 TASK="$(grep -m1 -E '^- \[ \] (\(L\) )?[^(]' "$BACKLOG" | sed -E 's/^- \[ \] (\(L\) )?//')"
@@ -178,6 +185,9 @@ fi
 case "$AGENT" in
   claude) timeout "$MAXRUN" claude -p "$PROMPT" $CONT $MODEL_ARG --dangerously-skip-permissions >>"$LOG" 2>&1 ;;
   agy)    timeout "$MAXRUN" agy -p "$PROMPT" $CONT $MODEL_ARG --dangerously-skip-permissions --print-timeout 15m >>"$LOG" 2>&1 ;;
+  free)   # Free-tier API worker (OpenRouter / NVIDIA) via router.py. Handles
+          # small, text-shaped tasks when no Claude/agy quota is available.
+          timeout "$MAXRUN" "$DIR/.venv/bin/python" "$DIR/router.py" do "$PROJ" >>"$LOG" 2>&1 ;;
   *)      echo "unknown agent: $AGENT"; status error "unknown agent"; exit 1 ;;
 esac
 RC=$?
