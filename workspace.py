@@ -256,7 +256,10 @@ def test_key(body):
     else:
         try:
             avail = providers.models(prov, refresh=True)
-            probed = "" if cfg.get("local") else _probe_all(prov, avail)
+            # Probing asks every candidate at once: free for NVIDIA, but a fifth
+            # of OpenRouter's 50 free requests a day, and it would load every
+            # local model into memory. Those learn on first use instead.
+            probed = "" if cfg.get("local") or cfg.get("free_only") else _probe_all(prov, avail)
             res["tiers"] = {t: providers.resolve(prov, t, avail) or "" for t in TIERS}
             model = res["tiers"]["small"] or res["tiers"]["big"]
             if not model:

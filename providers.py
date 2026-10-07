@@ -109,12 +109,13 @@ PROVIDERS = {
         "blurb": "dozens of :free models, 50 requests/day without credits",
         "free_only": True,
         "tiers": {
-            "big": [r"nemotron-3-ultra.*:free$", r"^thinkingmachines/inkling:free$",
-                    r"^poolside/laguna-s-.*:free$", r"nemotron-3-super.*:free$"],
+            # Free Inkling only serves the agent apps OpenRouter lists, so it is
+            # left out: every other caller gets a 403.
+            "big": [r"nemotron-3-ultra.*:free$", r"^poolside/laguna-s-.*:free$",
+                    r"nemotron-3-super.*:free$"],
             "small": [r"nemotron-3\.5-lightning:free$", r"^cohere/north-mini-code:free$",
                       r"^poolside/laguna-xs-.*:free$", r"^google/gemma-4-26b.*:free$"],
-            "vision": [r"^thinkingmachines/inkling:free$", r"^google/gemma-4-31b-it:free$",
-                       r"nemotron-3-nano-omni.*:free$"],
+            "vision": [r"^google/gemma-4-31b-it:free$", r"nemotron-3-nano-omni.*:free$"],
         },
     },
     "gemini": {
@@ -278,6 +279,7 @@ def cool(prov, seconds):
 # and comes back on its own when the rest runs out.
 DEAD_REST = 24 * 3600
 STUCK_REST = 30 * 60
+BUSY_REST = 5 * 60            # the model's own host is rate limiting
 
 
 def resting(prov, model):
@@ -355,13 +357,17 @@ def _stream(url, payload, key, idle):
     The timeout applies to each wait for data, not to the whole reply: a model
     that never starts fails after `idle` seconds, while a long answer that keeps
     arriving is never cut off. Reasoning deltas are dropped."""
-    parts = []
+    parts, started, t0 = [], False, time.time()
     try:
         with urllib.request.urlopen(_request(url, dict(payload, stream=True), key, True),
                                     timeout=idle) as r:
             if "event-stream" not in r.headers.get("Content-Type", ""):
                 return _text(json.loads(r.read().decode())["choices"][0]["message"]["content"])
             for raw in r:
+                # OpenRouter sends ": PROCESSING" keep-alives while a model is
+                # queued; they keep the socket busy but are not an answer.
+                if not started and time.time() - t0 > idle:
+                    raise ProviderError(f"timed out: no answer started in {idle}s")
                 line = raw.decode("utf-8", "replace").strip()
                 if not line.startswith("data:"):
                     continue
@@ -373,9 +379,14 @@ def _stream(url, payload, key, idle):
                 except ValueError:
                     continue
                 if chunk.get("error"):
-                    raise ProviderError(f"stream error: {json.dumps(chunk['error'])[:200]}")
+                    err = chunk["error"]
+                    code = err.get("code") if isinstance(err, dict) else None
+                    raise ProviderError(f"HTTP {code} in stream: {json.dumps(err)[:200]}")
                 for ch in chunk.get("choices") or []:
-                    parts.append((ch.get("delta") or {}).get("content") or "")
+                    delta = ch.get("delta") or {}
+                    started = started or any(delta.get(k) for k in ("content", "reasoning",
+                                                                   "reasoning_content"))
+                    parts.append(delta.get("content") or "")
     except urllib.error.HTTPError as e:
         raise _http_error(e)
     except ProviderError:
@@ -560,13 +571,21 @@ def call(prov, model, messages, temperature=0.2, timeout=None):
         return _stream(PROVIDERS[prov]["url"] + "/chat/completions",
                        {"model": model, "messages": messages, "temperature": temperature},
                        key_for(prov), timeout or 90)
-    except RateLimited:
+    except RateLimited as e:
+        # "Provider returned error" is the model's own host limiting it, not
+        # this account: rest the model and let the provider's others answer.
+        if "Provider returned error" in str(e) or "HTTP 429 in stream" in str(e):
+            rest_model(prov, model, BUSY_REST)
+            raise ProviderError(f"model busy upstream: {str(e)[:160]}")
         raise
     except ProviderError as e:
-        if re.search(r"HTTP 40[4]|HTTP 410", str(e)):
-            rest_model(prov, model, DEAD_REST)
-        elif re.search(r"timed out|HTTP 5\d\d", str(e)):
+        s = str(e)
+        if re.search(r"HTTP (404|410)\b", s) or (re.search(r"HTTP 403\b", s) and model in s):
+            rest_model(prov, model, DEAD_REST)      # listed but not served to us
+        elif re.search(r"timed out|HTTP 5\d\d\b", s):
             rest_model(prov, model, STUCK_REST)
+        elif re.search(r"HTTP 429 in stream", s):
+            rest_model(prov, model, BUSY_REST)
         raise
 
 
@@ -588,10 +607,12 @@ def chat(messages, tier="small", temperature=0.2):
             tried.append(prov)
         except ProviderError as e:
             errors.append(f"{prov}/{model}: {str(e)[:120]}")
-            if re.search(r"HTTP 40[13]", str(e)):
+            if resting(prov, model):
+                continue                  # this model only: try the provider's next one
+            if re.search(r"HTTP 40[13]\b", str(e)):
                 cool(prov, 3600)          # rejected key: stop trying for an hour
                 tried.append(prov)
-            elif not resting(prov, model):
+            else:
                 # A dropped connection is retried once before the provider
                 # is given up on for this call.
                 strikes[prov] = strikes.get(prov, 0) + 1
