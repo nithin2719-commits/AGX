@@ -39,7 +39,10 @@ time, and sits idle whenever you are not driving it. AGX turns that into a team:
 | **Remember per project** | `PROJECT.md`, `PROGRESS.md`, and a Neo4j knowledge graph, all scoped to the project and carried in its repo. |
 | **Understand the codebase** | Graphify builds an AST-level graph — call relationships, hub functions, communities — so agents navigate instead of grepping blindly. |
 | **Choose the workers** | Per project, select which agents run and which model each uses, from the fastest cheap tier to the strongest reasoning model. |
-| **Fall back to free APIs** | With no Claude/agy quota, a free-tier worker (NVIDIA NIM or OpenRouter) handles the lighter tasks. |
+| **Fall back to free APIs** | With no Claude/agy quota, a free-tier worker handles the lighter tasks through `providers.py`: any configured free cloud tier, or Ollama on this machine. |
+| **Chat with free models** | The dashboard's Workspace tab chats with the small, big or vision tier and names the model behind every reply. Attach an image to ask about it. |
+| **Manage API keys** | Paste and test a key per provider in the Workspace tab. Keys stay in `config.env` (mode 600) and are never sent back to the browser. |
+| **Steer from your phone** | `tailnet.sh` publishes the dashboard over HTTPS on your Tailscale network; each device signs in once with the dashboard token. |
 | **Add project tools** | Enable MCP servers per project (for example, offensive-security tooling for a CTF repo) without affecting any other project. |
 | **Assign roles** | Give each agent an engineering role — AI engineer, backend architect, code reviewer — that shapes how it argues in meetings. |
 | **Stay in control** | Start, stop, commit, push, and question the agents from the dashboard. One button stops everything. |
@@ -53,6 +56,7 @@ time, and sits idle whenever you are not driving it. AGX turns that into a team:
         │                Dashboard (:8765)              │
         │   status · plans · live feed · model picker   │
         │   start / stop · commit / push · ask an agent │
+        │   workspace: free-model chat · vision · keys  │
         └───────────────┬──────────────────────────────┘
                         │
      ┌──────────────────┼──────────────────┐
@@ -78,7 +82,8 @@ bash up.sh                      # start the dashboard, graph memory, and office
 bash add-project.sh /path/repo  # register a git repo (memory + graph auto-built)
 ```
 
-Then open **http://localhost:8765** and:
+Then open **http://localhost:8765** (or, from another device,
+`bash tailnet.sh on` and the address it prints) and:
 
 1. Write what you want in the project's plan.
 2. Run a planning meeting — the agents agree the tasks.
@@ -108,6 +113,8 @@ systemctl --user enable --now agent-dashboard.service agent-cycle.timer
 | `bash focus.sh <name>` | Point the team at one project, or `all`. |
 | `python3 mcp.py catalog` | List MCP servers you can enable per project. |
 | `python3 roles.py list` | List engineering roles you can assign. |
+| `bash tailnet.sh on` / `off` / `link` | Serve the dashboard on your tailnet, stop it, or print the sign-in link. |
+| `python3 providers.py status` | Show free providers, keys and the model each tier uses. |
 
 ---
 
@@ -117,14 +124,32 @@ systemctl --user enable --now agent-dashboard.service agent-cycle.timer
 - Claude Code and/or Antigravity (`agy`) CLIs, authenticated
 - Docker (for the Neo4j graph memory)
 - Python 3.12 and `uv`
-- Optional: an NVIDIA NIM or OpenRouter key for the free-tier worker
+- Optional: Ollama, or a free key for any provider in `providers.py`, for the
+  free-tier worker and the Workspace tab
+- Optional: Tailscale, to reach the dashboard from your phone
 
 ---
 
 ## Safety
 
-- Agents run as your user — they cannot touch anything outside a project, and the
-  system prompt forbids destructive commands.
+- **Claude runs with a scoped tool allowlist** (`permissions.sh`), never with
+  permission checks skipped. Workers may read and edit files inside the
+  project, run `git status/diff/add/commit/log` and the project's test command;
+  meetings may only read and run `git log/diff/show`. Anything else, including
+  `rm`, `git push`, `git reset`, network tools and files outside the project,
+  is refused.
+- **agy has no allowlist option** and still runs with
+  `--dangerously-skip-permissions`; only its system prompt keeps it inside the
+  project. Give it projects on a branch you can discard.
+- **The dashboard requires a token.** Every button press carries the token
+  from `state/token` (mode 600), so another website open in your browser cannot
+  start agents or push. Requests addressed to any name other than
+  `localhost`, `127.0.0.1` or your tailnet name are refused, which stops DNS
+  rebinding.
+- **Remote access is opt-in.** The dashboard only listens on 127.0.0.1;
+  `tailnet.sh on` publishes it over HTTPS to your tailnet only. Every device
+  that is not this machine signs in once with the token and gets an HttpOnly,
+  Secure, SameSite=Strict cookie. Deleting `state/token` signs everyone out.
 - Everything is committed to git, so any change is reviewable and reversible.
 - Point the team at a dedicated branch until you trust it.
 - Commit messages are written as the repository owner would write them, with no
