@@ -287,7 +287,9 @@ def key_hint(prov):
 # ------------------------------------------------------------------ http
 def _http(url, payload=None, key="", timeout=180):
     data = json.dumps(payload).encode() if payload is not None else None
-    headers = {"Content-Type": "application/json",
+    # Cloudflare-fronted APIs (Groq among them) answer Python's default
+    # User-Agent with 403 "error code: 1010" before looking at the key.
+    headers = {"Content-Type": "application/json", "User-Agent": "AGX/1.0",
                "HTTP-Referer": "https://localhost/agx", "X-Title": "AGX"}
     if key:
         headers["Authorization"] = f"Bearer {key}"
