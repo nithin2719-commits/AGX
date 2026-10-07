@@ -4,7 +4,8 @@
 Shows every project: what each agent is doing, the plan you gave them, the tasks,
 and the full text of their planning meetings and work logs.
 """
-import http.server, socketserver, json, os, sys, subprocess, re, html, hmac, secrets
+import http.server, socketserver, json, os, sys, subprocess, re, html, hmac, secrets, hashlib, time
+from http.cookies import SimpleCookie
 from urllib.parse import parse_qs, urlparse
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -37,6 +38,32 @@ def load_token():
 
 
 TOKEN = load_token()
+
+# Remote access over Tailscale. tailnet.sh runs `tailscale serve`, which
+# proxies https://<machine>.<tailnet>.ts.net to this loopback port and adds
+# forwarding headers, and writes that name to state/tailnet-host. A request
+# that carries forwarding headers is remote: it must name the tailnet host and
+# carry the session cookie from /login. Plain localhost needs no sign-in.
+TAILNET_FILE = os.path.join(BASE, "state", "tailnet-host")
+FORWARDED = ("X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "Forwarded",
+             "Tailscale-User-Login")
+# The cookie is derived from the token, so a new token signs everyone out.
+SESSION = hmac.new(TOKEN.encode(), b"agx-session-v1", hashlib.sha256).hexdigest()
+SESSION_AGE = 30 * 24 * 3600
+PUBLIC = {"/login", "/app.css"}           # what a signed-out remote browser may load
+_TAILNET = {"mtime": None, "hosts": frozenset()}
+
+
+def tailnet_hosts():
+    """Names the tailnet may use. Empty when remote access is off."""
+    try:
+        m = os.path.getmtime(TAILNET_FILE)
+    except OSError:
+        return frozenset()
+    if m != _TAILNET["mtime"]:
+        names = {l.strip().lower().rstrip(".") for l in read(TAILNET_FILE, 2000).splitlines()}
+        _TAILNET.update(mtime=m, hosts=frozenset(n for n in names if n))
+    return _TAILNET["hosts"]
 
 _MODEL_CACHE = {"t": 0, "v": None}
 
@@ -704,13 +731,80 @@ class H(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _host_ok(self):
-        """Reject any Host but this machine's own names. A page on another site
-        that rebinds its DNS name to 127.0.0.1 still sends its own name here."""
-        if host_name(self.headers.get("Host")) not in LOCAL_HOSTS:
+    def _redirect(self, where, cookie=None):
+        self.send_response(303)
+        self.send_header("Location", where)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _signed_in(self):
+        try:
+            c = SimpleCookie(self.headers.get("Cookie", ""))
+        except Exception:
+            return False
+        v = c["agx_session"].value if "agx_session" in c else ""
+        return hmac.compare_digest(v.encode(), SESSION.encode())
+
+    def _gate(self, method):
+        """Decide whether this request may go on; sets self.local.
+
+        Local: no forwarding headers and Host is localhost or 127.0.0.1. Any
+        other Host is refused, which stops DNS rebinding: a page on another
+        site that points its name at 127.0.0.1 still sends its own name.
+
+        Remote (forwarded by tailscale serve): remote access must be on, the
+        name the browser used must be the tailnet host, and the browser must be
+        signed in. Signed-out browsers are sent to /login."""
+        host = host_name(self.headers.get("Host"))
+        forwarded = any(self.headers.get(h) for h in FORWARDED)
+        self.local = not forwarded and host in LOCAL_HOSTS
+        if self.local:
+            return True
+        hosts = tailnet_hosts()
+        xfh = self.headers.get("X-Forwarded-Host")
+        name = host_name(xfh.split(",")[0]) if xfh else host
+        # If the proxy rewrote Host to the loopback address without saying
+        # where the request was addressed, the request is still forwarded.
+        if not hosts or not (name in hosts or (forwarded and not xfh and name in LOCAL_HOSTS)):
             self._deny(403, "host not allowed")
             return False
-        return True
+        path = urlparse(self.path).path
+        if self._signed_in() or path in PUBLIC or path.startswith("/fonts/"):
+            return True
+        if method == "GET":
+            self._redirect("/login")
+        else:
+            self._deny(401, "sign in first")
+        return False
+
+    def _origin_ok(self):
+        origin = self.headers.get("Origin")
+        allowed = LOCAL_HOSTS if self.local else tailnet_hosts()
+        return not origin or host_name(urlparse(origin).netloc) in allowed
+
+    def _login(self):
+        """POST /login: compare the token, then set the session cookie."""
+        if not self._origin_ok():
+            self._deny(403, "origin not allowed")
+            return
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            n = -1
+        if not 0 <= n <= 4096:
+            self._deny(413, "body too large")
+            return
+        form = parse_qs(self.rfile.read(n).decode(errors="replace"))
+        given = (form.get("token") or [""])[0].strip()
+        if not hmac.compare_digest(given.encode(), TOKEN.encode()):
+            time.sleep(1)                        # slow down guessing
+            self._redirect("/login?e=1")
+            return
+        secure = "; Secure" if self.headers.get("X-Forwarded-Proto", "") == "https" else ""
+        self._redirect("/", f"agx_session={SESSION}; Path=/; Max-Age={SESSION_AGE}; "
+                            f"HttpOnly; SameSite=Strict{secure}")
 
     def _send(self, body, ctype, code=200, cache=False):
         self.send_response(code)
@@ -728,10 +822,16 @@ class H(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if not self._host_ok():
+        if not self._gate("GET"):
             return
         u = urlparse(self.path)
-        if u.path == "/api":
+        if u.path == "/login":
+            if self.local or self._signed_in():
+                self._redirect("/")
+            else:
+                self._send(read(os.path.join(WEB, "login.html")).encode(),
+                           "text/html; charset=utf-8")
+        elif u.path == "/api":
             self._send(json.dumps({"projects": collect(), "models": discover_models(),
                                    "settings": settings()}).encode(),
                        "application/json")
@@ -799,7 +899,10 @@ class H(http.server.BaseHTTPRequestHandler):
             self._send(index_page().encode(), "text/html; charset=utf-8")
 
     def do_POST(self):
-        if not self._host_ok():
+        if not self._gate("POST"):
+            return
+        if urlparse(self.path).path == "/login":
+            self._login()
             return
         if urlparse(self.path).path != "/action":
             self._send(b"not found", "text/plain", 404)
@@ -811,8 +914,7 @@ class H(http.server.BaseHTTPRequestHandler):
                                    TOKEN.encode()):
             self._deny(403, "missing or wrong X-AGX-Token")
             return
-        origin = self.headers.get("Origin")
-        if origin and host_name(urlparse(origin).netloc) not in LOCAL_HOSTS:
+        if not self._origin_ok():
             self._deny(403, "origin not allowed")
             return
         if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":

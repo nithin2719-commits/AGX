@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>AGX sign in</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  .login{max-width:460px;margin:12vh auto 0}
+  .login form{display:grid;gap:14px}
+  .login .err{color:var(--bad)}
+  .login button{justify-content:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="login frame">
+    <h1 class="brand">AGX</h1>
+    <p class="hint">Sign in once on this device with the dashboard token. On the AGX
+      machine, <code>bash ~/agent-team/tailnet.sh link</code> prints it.</p>
+    <p class="err" id="err" hidden>That token is not right.</p>
+    <form method="post" action="/login" id="f">
+      <label class="label" for="token">Token</label>
+      <input type="password" id="token" name="token" autocomplete="off" spellcheck="false" required>
+      <button class="b-go" type="submit">SIGN IN</button>
+    </form>
+  </div>
+</div>
+<script>
+  if (new URLSearchParams(location.search).has('e')) document.getElementById('err').hidden = false;
+  // The sign-in link carries the token after "#", which browsers never send
+  // to the server. Take it, clear it from the address bar, and sign in.
+  function fromLink() {
+    if (location.hash.length < 2) return;
+    document.getElementById('token').value = decodeURIComponent(location.hash.slice(1));
+    history.replaceState(null, '', location.pathname);
+    document.getElementById('f').submit();
+  }
+  fromLink();
+  // Pasting the link into a tab already on this page changes only the hash.
+  addEventListener('hashchange', fromLink);
+</script>
+</body>
+</html>
