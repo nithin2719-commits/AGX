@@ -87,7 +87,7 @@ function showView(v) {
   $('#view-ops').hidden = ws; $('#view-ws').hidden = !ws;
   $('#tab-ops').setAttribute('aria-selected', String(!ws));
   $('#tab-ws').setAttribute('aria-selected', String(ws));
-  if (ws && !WS.loaded) wsRefresh();
+  if (ws) wsRefresh();                       // keys and routing change elsewhere
 }
 // The project shown in the detail: the one in the address, or on a wide
 // screen the first in the list. On a phone, no address means the list.
@@ -452,14 +452,13 @@ async function addProject(path) {
 // Chat with the free models (providers.py picks the model for each size),
 // ask about an image, manage API keys, and make images where a provider has
 // proved it can.
-const WS = {tier: 'big', model: '', log: [], image: null, busy: false, state: null, loaded: false, rows: new Map()};
+const WS = {tier: 'big', model: '', log: [], image: null, busy: false, state: null, rows: new Map()};
 const TIER_NOTE = {small: 'fast and cheap', big: 'strongest reasoning', vision: 'understands images'};
 // "nvidia/nvidia/nemotron-…" reads badly; show the model, then where it runs.
 const via = (prov, model) => `${model} via ${prov}`;
 const viaRef = ref => { const i = (ref || '').indexOf('/'); return i < 0 ? ref : via(ref.slice(0, i), ref.slice(i + 1)); };
 
 async function wsRefresh() {
-  WS.loaded = true;
   try {
     const j = await post({action: 'ws_state'});
     if (!j.ok) { toast(j.msg || 'The workspace did not load.', true); return; }
@@ -780,6 +779,10 @@ $('#wsq').addEventListener('paste', e => {
   if (f) { e.preventDefault(); attachFile(f); }
 });
 addEventListener('hashchange', route);
+// Coming back to a tab left open for a while: the workspace may be stale.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !$('#view-ws').hidden) wsRefresh();
+});
 WIDE.addEventListener('change', () => { renderList(); renderDetail(); });
 
 // ---------------------------------------------------------------- refresh
