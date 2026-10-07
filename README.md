@@ -1,6 +1,19 @@
-# AGX
+<div align="center">
+
+<img src="assets/banner.png" alt="AGX — an operations console for a team of autonomous coding agents" width="100%">
+
+<br>
+
+[![python](https://img.shields.io/badge/python-3.12-1b2233?style=flat-square&logo=python&logoColor=white)](#requirements)
+[![systemd](https://img.shields.io/badge/runs%20on-systemd%20timers-1b2233?style=flat-square)](#quick-start)
+[![agents](https://img.shields.io/badge/agents-Claude%20Code%20%C2%B7%20agy-1b2233?style=flat-square)](#what-it-does)
+[![memory](https://img.shields.io/badge/memory-Neo4j%20%2B%20Graphify-1b2233?style=flat-square)](#architecture)
 
 **An operations console for a team of autonomous coding agents.**
+
+[Screenshots](#screenshots) · [What it does](#what-it-does) · [Architecture](#architecture) · [Quick start](#quick-start) · [Commands](#command-reference)
+
+</div>
 
 AGX runs Claude Code and Antigravity (`agy`) — plus optional free-tier API
 models — as a coordinated team that plans, builds, reviews, and commits work
@@ -27,6 +40,25 @@ time, and sits idle whenever you are not driving it. AGX turns that into a team:
   where the last one stopped instead of from zero.
 - **Work that does not stop.** Systemd timers wake the team on a schedule. When a
   usage limit resets, the agents pick up the backlog again with no prompting.
+
+---
+
+## Screenshots
+
+<img src="assets/dashboard.png" alt="AGX dashboard: control bar, model picker, stats and live activity feed" width="100%">
+
+<p align="center"><sub><b>The console.</b> Start or stop the whole team, choose a model per agent, and watch every commit land in the live feed.</sub></p>
+
+<table>
+<tr>
+<td width="40%" valign="top"><img src="assets/project-details.png" alt="A project card with plan, agent status, meetings, work logs and recent commits"></td>
+<td width="60%" valign="top"><img src="assets/code-graph.png" alt="Graphify code graph for a project, coloured by community"></td>
+</tr>
+<tr>
+<td align="center"><sub><b>Project card.</b> Plan, agent status, planning meetings, work logs and recent commits.</sub></td>
+<td align="center"><sub><b>Code graph.</b> The Graphify map agents navigate by: 282 nodes, 585 edges, 14 communities.</sub></td>
+</tr>
+</table>
 
 ---
 
