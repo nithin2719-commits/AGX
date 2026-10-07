@@ -4,29 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>AGX sign in</title>
+<meta name="theme-color" content="#0f1d21">
+<title>Sign in to AGX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800&family=Atkinson+Hyperlegible+Next:wght@400;600&display=swap">
 <link rel="stylesheet" href="/app.css">
-<style>
-  .login{max-width:460px;margin:12vh auto 0}
-  .login form{display:grid;gap:14px}
-  .login .err{color:var(--bad)}
-  .login button{justify-content:center}
-</style>
 </head>
 <body>
-<div class="wrap">
-  <div class="login frame">
-    <h1 class="brand">AGX</h1>
-    <p class="hint">Sign in once on this device with the dashboard token. On the AGX
-      machine, <code>bash ~/agent-team/tailnet.sh link</code> prints it.</p>
-    <p class="err" id="err" hidden>That token is not right.</p>
-    <form method="post" action="/login" id="f">
-      <label class="label" for="token">Token</label>
-      <input type="password" id="token" name="token" autocomplete="off" spellcheck="false" required>
-      <button class="b-go" type="submit">SIGN IN</button>
-    </form>
-  </div>
-</div>
+<main class="signin">
+  <h1>AGX</h1>
+  <p>Sign in once on this device with the dashboard token. On the AGX machine,
+    <code>bash ~/agent-team/tailnet.sh link</code> prints it.</p>
+  <p class="is-bad" id="err" hidden>That token is not right. Check it and try again.</p>
+  <form method="post" action="/login" id="f">
+    <label for="token">Token</label>
+    <input type="password" id="token" name="token" autocomplete="off" spellcheck="false" required>
+    <button class="primary" type="submit">Sign in</button>
+  </form>
+</main>
 <script>
   if (new URLSearchParams(location.search).has('e')) document.getElementById('err').hidden = false;
   // The sign-in link carries the token after "#", which browsers never send

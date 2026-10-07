@@ -4,118 +4,117 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0f1d21">
 <meta name="agx-token" content="__AGX_TOKEN__">
 <title>AGX</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%2309090a'/><rect x='2' y='2' width='28' height='28' fill='none' stroke='%23ededf0' stroke-width='1.5'/><text x='16' y='21' font-family='monospace' font-size='12' font-weight='bold' text-anchor='middle' fill='%23ededf0'>AGX</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230f1d21'/><text x='16' y='22.5' font-family='Arial Narrow,sans-serif' font-size='15' font-weight='800' text-anchor='middle' fill='%23e9f1ef'>AGX</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Atkinson+Hyperlegible+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <h1 class="brand">AGX</h1>
-    <p class="sub" id="sub">loading…</p>
-  </header>
-
-  <nav class="tabs" role="tablist" aria-label="Views">
-    <button class="tab" role="tab" id="tab-ops" aria-controls="view-ops" aria-selected="true" data-do="tab" data-tab="ops">OPERATIONS</button>
-    <button class="tab" role="tab" id="tab-ws" aria-controls="view-ws" aria-selected="false" data-do="tab" data-tab="ws">WORKSPACE</button>
+<header class="topbar">
+  <a class="mark" href="#/">AGX</a>
+  <nav class="views" role="tablist" aria-label="Views">
+    <button role="tab" id="tab-ops" aria-controls="view-ops" aria-selected="true" data-do="tab" data-tab="ops">Operations</button>
+    <button role="tab" id="tab-ws" aria-controls="view-ws" aria-selected="false" data-do="tab" data-tab="ws">Workspace</button>
   </nav>
+  <p class="updated" id="sub">Connecting…</p>
+</header>
 
-  <div id="view-ops" role="tabpanel" aria-labelledby="tab-ops">
-    <nav class="row controls" aria-label="Team controls">
-      <button class="b-go" data-act="cycle">AUTO CYCLE &mdash; DECIDE + WORK</button>
-      <button data-act="team">RUN TEAM</button>
-      <a class="btn" href="/office" target="_blank" rel="noopener">PIXEL OFFICE</a>
-      <button data-do="toggleScan" aria-expanded="false" aria-controls="scanbox">+ ADD PROJECT</button>
-      <button class="b-danger" data-act="stop_all">STOP EVERYTHING</button>
-    </nav>
-    <div class="frame" id="scanbox" hidden></div>
-    <div class="row addpath">
-      <input type="text" id="newpath" placeholder="or type a project path…" aria-label="Project path to add">
-      <button data-do="addManual">ADD PATH</button>
+<div id="view-ops" role="tabpanel" aria-labelledby="tab-ops">
+  <section class="hero" aria-label="What the crew is doing">
+    <h1 class="now" id="now" aria-live="polite">Checking on the crew…</h1>
+    <p class="totals" id="totals"></p>
+    <div class="focus">
+      <label for="note">Your focus</label>
+      <textarea id="note" rows="1" placeholder="What you are working on. It stays here between sessions."></textarea>
     </div>
+    <div class="row team" role="group" aria-label="Whole team">
+      <button class="primary" data-act="cycle">Auto cycle: decide and work</button>
+      <button data-act="team">Run team</button>
+      <a class="btn" href="/office" target="_blank" rel="noopener">Pixel office</a>
+      <button data-do="toggleScan" aria-expanded="false" aria-controls="scan">Add project</button>
+      <button class="danger" data-act="stop_all">Stop everything</button>
+    </div>
+    <div class="scan" id="scan" hidden>
+      <div class="row">
+        <input type="text" id="newpath" class="grow" placeholder="Path to a git repo, e.g. ~/Projects/mailflow" aria-label="Path of a project to add">
+        <button data-do="addManual">Add path</button>
+        <button class="plain" data-do="toggleScan">Close</button>
+      </div>
+      <div id="scanlist"></div>
+    </div>
+  </section>
 
-    <section class="frame setbar" aria-label="Settings">
-      <div>
-        <h2 class="label">Model per agent</h2>
+  <div class="desk">
+    <aside class="side" aria-label="Projects and activity">
+      <h2>Projects</h2>
+      <nav id="plist" aria-label="Projects"></nav>
+      <h2>Recent activity</h2>
+      <ol class="feed" id="feed"></ol>
+      <details class="settings">
+        <summary>Models per agent</summary>
         <div id="models"></div>
-      </div>
-      <div class="notewrap">
-        <label class="label" for="note">What you are working on (kept between sessions)</label>
-        <textarea id="note" placeholder="e.g. fixing the RGB fusion for SignFlow, then the Mac class_map bug"></textarea>
-      </div>
-    </section>
-
-    <section class="hud" id="hud" aria-label="Totals"></section>
-
-    <section class="frame feedbox" aria-labelledby="feedh">
-      <h2 class="label" id="feedh">Live activity</h2>
-      <div id="feed" aria-live="polite"></div>
-    </section>
-
-    <main id="grid"></main>
+      </details>
+    </aside>
+    <main class="detail" id="detail"></main>
   </div>
+</div>
 
-  <div id="view-ws" role="tabpanel" aria-labelledby="tab-ws" hidden>
-    <div class="ws">
-      <div class="ws-main">
-        <section class="frame" aria-labelledby="chath">
-          <div class="ws-head">
-            <h2 class="label" id="chath">Chat with the free models</h2>
-            <div class="seg" role="radiogroup" aria-label="Model tier">
-              <button role="radio" aria-checked="false" data-do="tier" data-tier="small">SMALL</button>
-              <button role="radio" aria-checked="true" data-do="tier" data-tier="big">BIG</button>
-              <button role="radio" aria-checked="false" data-do="tier" data-tier="vision">VISION</button>
-            </div>
-          </div>
-          <div class="ws-pick">
-            <label class="label" for="wsmodel">Model</label>
-            <select id="wsmodel"><option value="">Auto - the best free model for the tier</option></select>
-            <p class="hint" id="cloudhint" hidden></p>
-          </div>
-          <p class="hint" id="tierhint">checking which models are available…</p>
-          <div id="wslog" class="wslog" aria-live="polite"></div>
-          <div id="attach" class="attach" hidden>
-            <img alt="Attached image preview">
-            <span class="hint"></span>
-            <button data-do="unattach">REMOVE</button>
-          </div>
-          <label class="label sr" for="wsq">Message</label>
-          <textarea id="wsq" rows="3" placeholder="Ask anything, or attach an image and ask about it. Ctrl+Enter sends."></textarea>
-          <input type="file" id="wsfile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-          <div class="row">
-            <button class="b-go" data-do="wsSend">SEND</button>
-            <button data-do="pickImage">ATTACH IMAGE</button>
-            <button data-do="wsClear">CLEAR</button>
-          </div>
-        </section>
-
-        <section class="frame" aria-labelledby="imgh">
-          <h2 class="label" id="imgh">Generate an image</h2>
-          <div id="imggen"><p class="hint">loading…</p></div>
-        </section>
+<div id="view-ws" role="tabpanel" aria-labelledby="tab-ws" hidden>
+  <div class="ws">
+    <main class="ws-main">
+      <div class="ws-head">
+        <h2>Chat with free models</h2>
+        <div class="seg" role="radiogroup" aria-label="Model size">
+          <button role="radio" aria-checked="false" data-do="tier" data-tier="small">Small</button>
+          <button role="radio" aria-checked="true" data-do="tier" data-tier="big">Big</button>
+          <button role="radio" aria-checked="false" data-do="tier" data-tier="vision">Vision</button>
+        </div>
+      </div>
+      <div class="ws-pick">
+        <label for="wsmodel">Model</label>
+        <select id="wsmodel"><option value="">Auto: the best free model for this size</option></select>
+        <p class="hint" id="cloudhint" hidden></p>
+      </div>
+      <p class="hint" id="tierhint">Checking which models are available…</p>
+      <div class="wslog" id="wslog" aria-live="polite"></div>
+      <div class="attach" id="attach" hidden>
+        <img alt="Attached image preview">
+        <span class="hint"></span>
+        <button class="plain" data-do="unattach">Remove</button>
+      </div>
+      <label class="sr" for="wsq">Message</label>
+      <textarea id="wsq" rows="3" placeholder="Ask anything, or attach an image and ask about it. Ctrl+Enter sends."></textarea>
+      <input type="file" id="wsfile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      <div class="row">
+        <button class="primary" data-do="wsSend">Send</button>
+        <button data-do="pickImage">Attach image</button>
+        <button class="plain" data-do="wsClear">Clear chat</button>
       </div>
 
-      <section class="frame ws-keys" aria-labelledby="keyh">
-        <h2 class="label" id="keyh">API keys</h2>
-        <p class="hint">Keys are saved to config.env (mode 600) and never shown again here.</p>
-        <h3 class="sec">Each tier right now</h3>
-        <div id="tiers"></div>
-        <h3 class="sec">Providers</h3>
-        <div id="provs"></div>
+      <section class="imggen" aria-labelledby="imgh">
+        <h2 id="imgh">Make an image</h2>
+        <div id="imggen"><p class="hint">Loading…</p></div>
       </section>
-    </div>
+    </main>
+
+    <aside class="ws-side" aria-labelledby="keyh">
+      <h2 id="keyh">Models and keys</h2>
+      <p class="hint">Keys are saved to config.env (mode 600) and never shown here again.</p>
+      <div class="tiers" id="tiers"></div>
+      <div id="provs"></div>
+    </aside>
   </div>
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
 <div id="ov" role="dialog" aria-modal="true" aria-labelledby="ovt" hidden>
-  <div id="ovb" class="frame">
-    <div id="ovh"><h2 id="ovt"></h2><button id="ovx" data-do="closeOv">CLOSE</button></div>
+  <div id="ovb">
+    <div id="ovh"><h2 id="ovt"></h2><button id="ovx" data-do="closeOv">Close</button></div>
     <div id="ovc"></div>
   </div>
 </div>

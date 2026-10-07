@@ -377,10 +377,6 @@ def allowed(path):
 WEB = os.path.join(BASE, "web")
 STATIC = {"/app.css": "text/css; charset=utf-8",
           "/app.js": "application/javascript; charset=utf-8"}
-# Orbitron for browsers that do not have it installed (a phone on the tailnet).
-FONTS = {"/fonts/orbitron-500.ttf": "/usr/share/fonts/TTF/Orbitron Medium.ttf",
-         "/fonts/orbitron-700.ttf": "/usr/share/fonts/TTF/Orbitron Bold.ttf",
-         "/fonts/orbitron-900.ttf": "/usr/share/fonts/TTF/Orbitron Black.ttf"}
 
 
 def index_page():
@@ -771,7 +767,7 @@ class H(http.server.BaseHTTPRequestHandler):
             self._deny(403, "host not allowed")
             return False
         path = urlparse(self.path).path
-        if self._signed_in() or path in PUBLIC or path.startswith("/fonts/"):
+        if self._signed_in() or path in PUBLIC:
             return True
         if method == "GET":
             self._redirect("/login")
@@ -806,18 +802,15 @@ class H(http.server.BaseHTTPRequestHandler):
         self._redirect("/", f"agx_session={SESSION}; Path=/; Max-Age={SESSION_AGE}; "
                             f"HttpOnly; SameSite=Strict{secure}")
 
-    def _send(self, body, ctype, code=200, cache=False):
+    def _send(self, body, ctype, code=200):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        if cache:       # fonts never change
-            self.send_header("Cache-Control", "max-age=604800")
-        else:
-            # Never cache: the UI changes often and a stale page looks like
-            # "nothing changed" even after a redeploy.
-            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-            self.send_header("Pragma", "no-cache")
-            self.send_header("Expires", "0")
+        # Never cache: the UI changes often and a stale page looks like
+        # "nothing changed" even after a redeploy.
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.end_headers()
         self.wfile.write(body)
 
@@ -883,12 +876,6 @@ class H(http.server.BaseHTTPRequestHandler):
             self.end_headers()
         elif u.path in STATIC:
             self._send(read(os.path.join(WEB, u.path[1:])).encode(), STATIC[u.path])
-        elif u.path in FONTS:
-            try:
-                with open(FONTS[u.path], "rb") as f:
-                    self._send(f.read(), "font/ttf", cache=True)
-            except OSError:
-                self._send(b"", "font/ttf", 404)
         elif u.path == "/file":
             p = (parse_qs(u.query).get("p") or [""])[0]
             if allowed(p):
