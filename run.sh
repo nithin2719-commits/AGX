@@ -7,6 +7,7 @@ AGENT="${1:?usage: run.sh <claude|agy> <project-dir>}"
 PROJ="${2:?usage: run.sh <claude|agy> <project-dir>}"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$DIR/config.env"
+source "$DIR/permissions.sh"
 
 PROJ="$(cd "$PROJ" && pwd)" || { echo "no such project: $PROJ"; exit 1; }
 MEM="$PROJ/.agent-team"            # per-project memory lives inside the project
@@ -182,8 +183,12 @@ fi
 # the real task is silently dropped. This is what made agy fail ~20 runs in a
 # row: it was literally being asked "--continue" and replied "fresh conversation,
 # what would you like to work on?". Never reorder these.
+# --allowedTools takes every argument after it, so it stays last.
+# agy has no allowlist flag (see permissions.sh), so it still runs with
+# --dangerously-skip-permissions.
+claude_worker_tools "$PROJ"
 case "$AGENT" in
-  claude) timeout "$MAXRUN" claude -p "$PROMPT" $CONT $MODEL_ARG --dangerously-skip-permissions >>"$LOG" 2>&1 ;;
+  claude) timeout "$MAXRUN" claude -p "$PROMPT" $CONT $MODEL_ARG --allowedTools "${CLAUDE_TOOLS[@]}" >>"$LOG" 2>&1 ;;
   agy)    timeout "$MAXRUN" agy -p "$PROMPT" $CONT $MODEL_ARG --dangerously-skip-permissions --print-timeout 15m >>"$LOG" 2>&1 ;;
   free)   # Free-tier API worker (OpenRouter / NVIDIA) via router.py. Handles
           # small, text-shaped tasks when no Claude/agy quota is available.

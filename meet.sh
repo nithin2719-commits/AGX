@@ -10,8 +10,10 @@ set -uo pipefail
 PROJ="${1:?usage: meet.sh <project-path>}"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$DIR/config.env"
+source "$DIR/permissions.sh"
 
 PROJ="$(cd "$PROJ" && pwd)" || { echo "no such project: $PROJ"; exit 1; }
+claude_meet_tools "$PROJ"
 MEM="$PROJ/.agent-team"
 NAME="$(basename "$PROJ")"
 BACKLOG="$MEM/backlog.md"
@@ -86,7 +88,7 @@ $ROLE_CLAUDE
 You are CLAUDE. Read the actual code in this repo, then propose the 4 most
 valuable next tasks. For each: the task, and one line on why it matters.
 Be concrete and reference real files. Do not write anything to disk." \
-  --dangerously-skip-permissions
+  --allowedTools "${CLAUDE_TOOLS[@]}"
 [ -s "$WORK/r1.md" ] || { echo "Claude produced nothing (see $LOGDIR/${NAME}-meet.err)"; exit 1; }
 
 # ---------- Round 2: agy challenges ----------
@@ -105,7 +107,7 @@ $(cat "$WORK/r1.md")
 Read the real code yourself and respond honestly. Start each item with the word
 AGREE, CHANGE or REJECT followed by your reason, and then add anything Claude
 missed. Disagree where you genuinely disagree. Do not write anything to disk." \
-  --dangerously-skip-permissions --print-timeout 14m
+  --dangerously-skip-permissions --print-timeout 14m   # agy: no allowlist flag, see permissions.sh
 
 if ! grep -qiE '(AGREE|CHANGE|REJECT)' "$WORK/r2.md" 2>/dev/null; then
   echo "    !! agy did not review properly - its reply is in the transcript"
@@ -136,7 +138,7 @@ concrete defect. Aim for 12-25 tasks.
 
 Output ONLY the task lines, each starting with '- [ ] ', one concrete action per
 line. No preamble, no numbering, no headings, nothing else." \
-  --dangerously-skip-permissions
+  --allowedTools "${CLAUDE_TOOLS[@]}"
 
 # ---------- save transcript ----------
 {
