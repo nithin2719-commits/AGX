@@ -530,6 +530,243 @@ $('#note').addEventListener('input', e => {
   }, 900);
 });
 
+// ---------------------------------------------------------------- workspace
+// Chat with the free models (providers.py picks the model for each tier),
+// ask about an image, manage API keys, and generate images where a provider
+// has proved it can.
+const WS = {tier: 'big', log: [], image: null, busy: false, state: null, loaded: false, rows: new Map()};
+const TIER_NOTE = {small: 'fast and cheap', big: 'strongest reasoning', vision: 'understands images'};
+
+function showTab(t) {
+  const ws = t === 'ws';
+  $('#view-ops').hidden = ws;
+  $('#view-ws').hidden = !ws;
+  $('#tab-ops').setAttribute('aria-selected', String(!ws));
+  $('#tab-ws').setAttribute('aria-selected', String(ws));
+  try { history.replaceState(null, '', location.pathname + (ws ? '#workspace' : '')); } catch (e) { /* file view */ }
+  if (ws && !WS.loaded) wsRefresh();
+}
+async function wsRefresh() {
+  WS.loaded = true;
+  try {
+    const j = await post({action: 'ws_state'});
+    if (!j.ok) { toast(j.msg || 'workspace failed to load', true); return; }
+    WS.state = j;
+    renderWsState();
+  } catch (e) { toast('workspace: ' + e, true); }
+}
+function renderWsState() {
+  const s = WS.state;
+  setHTML($('#tiers'), ['small', 'big', 'vision'].map(t => {
+    const v = s.tiers[t] || {};
+    return `<div class="tierrow"><b>${t}</b>${v.provider
+      ? `<span>${esc(v.provider)}/${esc(v.model)}</span>` : '<span class="none">nothing available</span>'}</div>`;
+  }).join(''));
+  renderTierHint();
+  const box = $('#provs');
+  for (const r of s.providers) {
+    let row = WS.rows.get(r.id);
+    if (!row) { row = makeProvRow(r); WS.rows.set(r.id, row); box.appendChild(row.el); }
+    updateProvRow(row, r);
+  }
+  renderImageGen();
+}
+function renderTierHint() {
+  const s = WS.state, v = s && s.tiers[WS.tier];
+  setText($('#tierhint'), !s ? 'checking which models are available…'
+    : v && v.provider ? `${WS.tier} (${TIER_NOTE[WS.tier]}) is answered by ${v.provider}/${v.model} right now`
+    : `nothing can answer the ${WS.tier} tier - add a key or start Ollama`);
+}
+function makeProvRow(r) {
+  const el = document.createElement('div');
+  el.className = 'prow';
+  el.dataset.prov = r.id;
+  el.innerHTML = `<div class="prow-head"><b>${esc(r.label)}</b><span class="pill" data-k="pill"></span></div>
+    <p class="hint">${esc(r.blurb)}${r.local ? '' : ` - <a href="${esc(r.signup)}" target="_blank" rel="noopener">get a key</a>`}</p>
+    <div class="row">
+      ${r.env ? `<input type="password" autocomplete="off" spellcheck="false" data-k="key"
+        placeholder="paste ${esc(r.env)}${r.prefix ? ' (' + esc(r.prefix) + '…)' : ''}" aria-label="${esc(r.label)} API key">
+      <button data-do="keySave">SAVE</button>` : ''}
+      <button data-do="keyTest">TEST</button>
+      ${r.image === 'untested' || r.image === 'verified' ? '<button data-do="imgTest">TEST IMAGE</button>' : ''}
+    </div>
+    <div class="tres" data-k="res"></div>`;
+  const q = {};
+  el.querySelectorAll('[data-k]').forEach(x => { q[x.dataset.k] = x; });
+  return {el, q};
+}
+function updateProvRow(row, r) {
+  const t = r.test;
+  const pill = r.local ? (r.ready ? ['ok', 'RUNNING'] : ['warn', 'NOT RUNNING'])
+    : r.cooling ? ['warn', `RESTING ${r.cooling}s`]
+    : !r.has_key ? ['', 'NO KEY']
+    : t && t.ok ? ['ok', 'WORKS'] : t ? ['bad', 'TEST FAILED'] : ['', 'KEY SET, UNTESTED'];
+  row.q.pill.className = 'pill ' + pill[0];
+  setText(row.q.pill, pill[1]);
+  let html = '';
+  if (t) {
+    html = `<div>${t.ok ? 'tested' : 'failed'} ${esc(t.at || '')}: ${esc(t.msg)}</div>`;
+    if (t.tiers && Object.keys(t.tiers).length) {
+      html += '<div class="tt">' + ['small', 'big', 'vision'].map(x => `${x}: ${esc(t.tiers[x] || 'none')}`).join(', ') + '</div>';
+    }
+  }
+  if (r.image === 'verified') html += `<div>image generation works: ${esc(r.image_note)}</div>`;
+  else if (r.image === 'never') html += `<div class="tt">${esc(r.image_note)}</div>`;
+  else if (r.image === 'untested' && r.image_note) html += `<div class="tt">last image test failed: ${esc(r.image_note)}</div>`;
+  row.q.res.className = 'tres' + (t && !t.ok ? ' bad' : '');
+  setHTML(row.q.res, html);
+}
+function renderImageGen() {
+  const rows = WS.state.providers || [], box = $('#imggen');
+  const ok = rows.filter(r => r.image === 'verified');
+  if (!ok.length) {
+    box._ready = null;
+    const cands = rows.filter(r => r.image === 'untested').map(r => r.label).join(' or ');
+    setHTML(box, `<p class="hint">No provider has produced an image on this machine yet, so nothing is offered.
+      Save a ${esc(cands)} key, then press TEST IMAGE next to it. Ollama refuses image models over its API,
+      so it is not an option.</p>`);
+    return;
+  }
+  const sig = ok.map(r => r.id + r.image_note).join();
+  if (box._ready === sig) return;            // keep a half-typed prompt
+  box._ready = sig; box._html = null;
+  box.innerHTML = `<div class="imgrow">
+    <select id="imgprov" aria-label="Image provider">${ok.map(r =>
+      `<option value="${esc(r.id)}">${esc(r.label)}: ${esc((r.image_note || '').replace(/ returned an image$/, ''))}</option>`).join('')}</select>
+    <textarea id="imgprompt" rows="2" placeholder="describe the image you want"></textarea>
+    <div class="row"><button class="b-go" data-do="imgMake">GENERATE</button></div></div>`;
+}
+function renderWsLog() {
+  const el = $('#wslog');
+  el.innerHTML = WS.log.map(m => {
+    const ext = m.image ? (m.image.match(/^data:image\/(\w+)/) || [, 'png'])[1].replace('jpeg', 'jpg') : '';
+    return `<div class="wmsg${m.role === 'user' ? '' : ' ai'}${m.err ? ' err' : ''}">
+      <div class="who2">${m.err ? 'ERROR' : m.role === 'user' ? 'YOU' : 'MODEL'}</div>
+      ${m.content ? `<div class="body">${esc(m.content)}</div>` : ''}
+      ${m.image ? `<img src="${esc(m.image)}" alt="${m.role === 'user' ? 'Attached image' : 'Generated image'}">` : ''}
+      ${m.model ? `<div class="meta">answered by ${esc(m.model)}${m.tier ? ' (' + esc(m.tier) + ' tier)' : ''}</div>` : ''}
+      ${m.kind === 'gen' && m.image && m.role !== 'user' ? `<a class="btn" href="${esc(m.image)}" download="agx-image.${ext}">SAVE IMAGE</a>` : ''}
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+async function wsSend() {
+  if (WS.busy) { toast('wait for the reply first', true); return; }
+  const ta = $('#wsq'), text = ta.value.trim(), image = WS.image && WS.image.url;
+  if (!text && !image) return;
+  const history = WS.log.filter(m => !m.err && !m.pending && m.kind === 'text' && m.content)
+    .slice(-14).map(m => ({role: m.role, content: m.content}));
+  const pending = {role: 'assistant', content: image ? 'looking at the image…' : 'thinking…', pending: true};
+  WS.log.push({role: 'user', content: text, image, kind: 'text'}, pending);
+  ta.value = '';
+  unattach();
+  renderWsLog();
+  WS.busy = true;
+  try {
+    const j = await post({action: 'ws_chat', tier: WS.tier, image,
+                          messages: history.concat([{role: 'user', content: text}])});
+    Object.assign(pending, j.ok ? {content: j.reply, model: j.model, tier: j.tier, kind: 'text'}
+                                : {content: j.msg || 'failed', err: true});
+  } catch (e) { Object.assign(pending, {content: 'request failed: ' + e, err: true}); }
+  pending.pending = false;
+  WS.busy = false;
+  renderWsLog();
+}
+function readURL(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result); r.onerror = () => rej(r.error);
+    r.readAsDataURL(file);
+  });
+}
+// Phone photos run to several megabytes; models see 1600px just as well.
+async function shrink(file) {
+  const url = await readURL(file);
+  const img = await new Promise((res, rej) => {
+    const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('not an image')); i.src = url;
+  });
+  const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+  if (scale === 1 && file.size <= 2.5e6) return url;
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.9);
+}
+async function attachFile(file) {
+  if (!file) return;
+  if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) { toast('attach a PNG, JPEG, WebP or GIF image', true); return; }
+  try {
+    WS.image = {url: await shrink(file), name: file.name || 'pasted image'};
+  } catch (e) { toast('could not read the image: ' + e, true); return; }
+  const a = $('#attach');
+  $('img', a).src = WS.image.url;
+  setText($('span', a), `${WS.image.name} - questions about it go to the vision tier`);
+  a.hidden = false;
+}
+function unattach() { WS.image = null; $('#attach').hidden = true; $('#attach img').removeAttribute('src'); }
+async function wsCall(btn, body, after) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'WORKING…';
+  try {
+    const j = await post(body);
+    toast(j.msg || (j.ok ? 'done' : 'failed'), !j.ok);
+    if (after) after(j);
+  } catch (e) { toast('request failed: ' + e, true); }
+  btn.disabled = false; btn.textContent = label;
+  await wsRefresh();
+}
+Object.assign(DO, {
+  tab(btn) { showTab(btn.dataset.tab); },
+  tier(btn) {
+    WS.tier = btn.dataset.tier;
+    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-checked', String(b === btn)));
+    renderTierHint();
+  },
+  wsSend,
+  pickImage() { $('#wsfile').click(); },
+  unattach,
+  wsClear() { WS.log = []; renderWsLog(); },
+  keySave(btn) {
+    const row = btn.closest('.prow'), input = $('input', row), key = input.value.trim();
+    if (!key) { input.focus(); return; }
+    wsCall(btn, {action: 'ws_key_save', provider: row.dataset.prov, key}, j => { if (j.ok) input.value = ''; });
+  },
+  keyTest(btn) { wsCall(btn, {action: 'ws_key_test', provider: btn.closest('.prow').dataset.prov}); },
+  imgTest(btn) {
+    const prov = btn.closest('.prow').dataset.prov;
+    wsCall(btn, {action: 'ws_image_test', provider: prov}, j => {
+      if (j.ok && j.image) {
+        WS.log.push({role: 'assistant', content: 'Image generation test', image: j.image,
+                     model: prov + '/' + j.model, kind: 'gen'});
+        renderWsLog();
+      }
+    });
+  },
+  async imgMake(btn) {
+    const ta = $('#imgprompt'), prompt = ta.value.trim(), provider = $('#imgprov').value;
+    if (!prompt) { ta.focus(); return; }
+    const pending = {role: 'assistant', content: 'generating…', pending: true, kind: 'gen'};
+    WS.log.push({role: 'user', content: 'Generate: ' + prompt, kind: 'gen'}, pending);
+    renderWsLog();
+    btn.disabled = true;
+    try {
+      const j = await post({action: 'ws_image', provider, prompt});
+      Object.assign(pending, j.ok ? {content: '', image: j.image, model: j.model} : {content: j.msg, err: true});
+    } catch (e) { Object.assign(pending, {content: 'request failed: ' + e, err: true}); }
+    pending.pending = false; btn.disabled = false;
+    renderWsLog();
+  },
+});
+$('#wsfile').addEventListener('change', e => { attachFile(e.target.files[0]); e.target.value = ''; });
+$('#wsq').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); wsSend(); } });
+$('#wsq').addEventListener('paste', e => {
+  const f = [...(e.clipboardData || {}).files || []].find(x => x.type.startsWith('image/'));
+  if (f) { e.preventDefault(); attachFile(f); }
+});
+if (location.hash === '#workspace') showTab('ws');
+
 // ---------------------------------------------------------------- refresh
 async function tick() {
   if (TICKING) return;

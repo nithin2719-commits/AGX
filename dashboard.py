@@ -17,7 +17,7 @@ MINE = {"nithin2719-commits", "nithin2729-commits", "xcaptain09", "mano-dev-01"}
 SETTINGS = os.path.join(BASE, "settings.json")
 TOKEN_FILE = os.path.join(BASE, "state", "token")
 LOCAL_HOSTS = {"localhost", "127.0.0.1"}
-MAX_BODY = 1_000_000
+MAX_BODY = 12_000_000          # an attached image for the Workspace tab
 
 
 def load_token():
@@ -389,6 +389,12 @@ def do_action(body):
     act = body.get("action", "")
     name = body.get("project", "")
     proj = proj_by_name(name) if name else None
+
+    if act.startswith("ws_"):
+        # The Workspace tab: free-model chat, vision, keys, image generation.
+        import workspace
+        fn = workspace.ACTIONS.get(act)
+        return fn(body) if fn else {"ok": False, "msg": f"unknown action: {act}"}
 
     if act in ("run_claude", "run_agy"):
         if not proj:

@@ -65,6 +65,14 @@ a{color:var(--fg)}
 .brand{font-size:34px;font-weight:900;letter-spacing:.32em}
 .sub{margin:0;color:var(--muted);font-size:14px}
 
+/* ---------- tabs ---------- */
+.tabs{display:flex;margin-bottom:28px;border-bottom:1px solid var(--line)}
+.tab{font:700 14px/1 var(--display);letter-spacing:.1em;color:var(--dim);background:none;
+  border:0;border-bottom:2px solid transparent;border-radius:0;padding:14px 18px;
+  margin-bottom:-1px;min-height:46px}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
 /* ---------- controls ---------- */
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .row>*{min-width:0}
@@ -73,19 +81,15 @@ button,.btn{font:500 14px/1.2 var(--mono);letter-spacing:.04em;color:var(--fg);
   background:transparent;border:1px solid var(--line2);padding:11px 16px;min-height:44px;
   cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none;
   border-radius:2px;transition:background .12s,border-color .12s}
-button:hover:not(:disabled),.btn:hover{background:rgba(255,255,255,.06);border-color:var(--fg2)}
 button:disabled{opacity:.45;cursor:progress}
 button:focus-visible,.btn:focus-visible,input:focus-visible,textarea:focus-visible,
 select:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 .b-go{background:var(--fg);color:#000;border-color:var(--fg);font-weight:700}
-.b-go:hover:not(:disabled){background:#fff;border-color:#fff}
 .b-danger{color:var(--bad);border-color:rgba(242,114,122,.5)}
-.b-danger:hover:not(:disabled){background:rgba(242,114,122,.10);border-color:var(--bad)}
 .b-claude{color:var(--claude);border-color:rgba(229,163,124,.45)}
 .b-agy{color:var(--agy);border-color:rgba(130,170,240,.45)}
 .linkish{border:0;padding:0;min-height:0;background:none;font:inherit;color:inherit;
   letter-spacing:inherit;text-transform:inherit;text-align:left}
-.linkish:hover:not(:disabled){background:none;text-decoration:underline;text-underline-offset:4px}
 svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;
   stroke-linejoin:round;stroke-linecap:round}
 
@@ -216,6 +220,47 @@ select{appearance:auto}
 .found button{grid-column:2;grid-row:1/span 3}
 .found.third .fname{color:var(--dim)}
 
+/* ---------- workspace ---------- */
+.ws{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:var(--gap);align-items:start}
+.ws-main{display:grid;gap:var(--gap);min-width:0}
+.ws-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.ws-head .label{margin:0}
+.seg{display:inline-flex;border:1px solid var(--line2)}
+.seg button{border:0;border-right:1px solid var(--line2);border-radius:0;min-height:40px;padding:8px 14px}
+.seg button:last-child{border-right:0}
+.seg button[aria-checked="true"]{background:var(--fg);color:#000;font-weight:700}
+#tierhint{margin:12px 0 16px}
+.wslog{display:grid;gap:14px;max-height:56vh;overflow:auto;margin-bottom:16px}
+.wslog:empty{display:none}
+.wmsg{border-left:2px solid var(--line2);padding:2px 0 2px 14px;min-width:0}
+.wmsg.ai{border-left-color:var(--fg2)}
+.wmsg.err{border-left-color:var(--bad)}
+.wmsg .who2{font-size:14px;color:var(--dim);letter-spacing:.06em}
+.wmsg.err .who2{color:var(--bad)}
+.wmsg .body{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px}
+.wmsg img{display:block;max-width:min(100%,420px);max-height:420px;margin-top:8px;border:1px solid var(--line)}
+.wmsg .meta{font-size:14px;color:var(--muted);margin-top:6px}
+.attach{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.attach img{width:72px;height:72px;object-fit:cover;border:1px solid var(--line2)}
+.attach span{flex:1;min-width:0;overflow-wrap:anywhere}
+#wsq{margin-bottom:12px}
+.tierrow{display:grid;grid-template-columns:70px minmax(0,1fr);gap:10px;padding:8px 0;
+  border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.tierrow b{font-weight:500;color:var(--dim)}
+.tierrow .none{color:var(--warn)}
+.prow{padding:16px 0;border-bottom:1px solid var(--line)}
+.prow-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.prow-head b{font-weight:700}
+.pill{font-size:14px;color:var(--dim)}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)} .pill.bad{color:var(--bad)}
+.prow .hint{margin:4px 0 10px}
+.prow .row input{flex:1 1 100%}
+.tres{font-size:14px;margin-top:10px;overflow-wrap:anywhere;color:var(--fg2)}
+.tres.bad{color:var(--bad)}
+.tres .tt{color:var(--dim)}
+.imgrow{display:grid;gap:12px}
+.imgrow select{max-width:100%}
+
 /* ---------- overlay ---------- */
 #ov{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.82);display:flex;
   align-items:flex-start;justify-content:center;padding:32px 16px;overflow:auto}
@@ -238,6 +283,17 @@ select{appearance:auto}
   padding:12px 16px;display:none;overflow-wrap:anywhere}
 #toast.err{border-color:var(--bad);color:var(--bad)}
 
+/* Hover only where a pointer can hover: on a phone a tapped button would
+   otherwise stay highlighted. */
+@media (hover:hover){
+  button:hover:not(:disabled),.btn:hover{background:rgba(255,255,255,.06);border-color:var(--fg2)}
+  .b-go:hover:not(:disabled){background:#fff;border-color:#fff}
+  .b-danger:hover:not(:disabled){background:rgba(242,114,122,.10);border-color:var(--bad)}
+  .linkish:hover:not(:disabled){background:none;text-decoration:underline;text-underline-offset:4px}
+  .tab:hover:not(:disabled){background:none;color:var(--fg)}
+  .seg button[aria-checked="true"]:hover{background:var(--fg);color:#000}
+}
+
 /* ---------- phone ---------- */
 @media (max-width:760px){
   :root{--pad:18px;--gap:16px}
@@ -249,6 +305,8 @@ select{appearance:auto}
   .fline{grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:4px 10px}
   .fline .ftask{grid-column:1/-1}
   .pv-cols{grid-template-columns:minmax(0,1fr)}
+  .ws{grid-template-columns:minmax(0,1fr)}
+  .tab{flex:1;padding:14px 8px}
   .agent{grid-template-columns:64px minmax(0,1fr)}
   .agent .what{grid-column:1/-1}
   .mini{grid-template-columns:repeat(2,minmax(0,1fr))}

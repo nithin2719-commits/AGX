@@ -19,7 +19,12 @@
     <p class="sub" id="sub">loading…</p>
   </header>
 
-  <div id="view-ops">
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" id="tab-ops" aria-controls="view-ops" aria-selected="true" data-do="tab" data-tab="ops">OPERATIONS</button>
+    <button class="tab" role="tab" id="tab-ws" aria-controls="view-ws" aria-selected="false" data-do="tab" data-tab="ws">WORKSPACE</button>
+  </nav>
+
+  <div id="view-ops" role="tabpanel" aria-labelledby="tab-ops">
     <nav class="row controls" aria-label="Team controls">
       <button class="b-go" data-act="cycle">AUTO CYCLE &mdash; DECIDE + WORK</button>
       <button data-act="team">RUN TEAM</button>
@@ -52,6 +57,52 @@
     </section>
 
     <main id="grid"></main>
+  </div>
+
+  <div id="view-ws" role="tabpanel" aria-labelledby="tab-ws" hidden>
+    <div class="ws">
+      <div class="ws-main">
+        <section class="frame" aria-labelledby="chath">
+          <div class="ws-head">
+            <h2 class="label" id="chath">Chat with the free models</h2>
+            <div class="seg" role="radiogroup" aria-label="Model tier">
+              <button role="radio" aria-checked="false" data-do="tier" data-tier="small">SMALL</button>
+              <button role="radio" aria-checked="true" data-do="tier" data-tier="big">BIG</button>
+              <button role="radio" aria-checked="false" data-do="tier" data-tier="vision">VISION</button>
+            </div>
+          </div>
+          <p class="hint" id="tierhint">checking which models are available…</p>
+          <div id="wslog" class="wslog" aria-live="polite"></div>
+          <div id="attach" class="attach" hidden>
+            <img alt="Attached image preview">
+            <span class="hint"></span>
+            <button data-do="unattach">REMOVE</button>
+          </div>
+          <label class="label sr" for="wsq">Message</label>
+          <textarea id="wsq" rows="3" placeholder="Ask anything, or attach an image and ask about it. Ctrl+Enter sends."></textarea>
+          <input type="file" id="wsfile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          <div class="row">
+            <button class="b-go" data-do="wsSend">SEND</button>
+            <button data-do="pickImage">ATTACH IMAGE</button>
+            <button data-do="wsClear">CLEAR</button>
+          </div>
+        </section>
+
+        <section class="frame" aria-labelledby="imgh">
+          <h2 class="label" id="imgh">Generate an image</h2>
+          <div id="imggen"><p class="hint">loading…</p></div>
+        </section>
+      </div>
+
+      <section class="frame ws-keys" aria-labelledby="keyh">
+        <h2 class="label" id="keyh">API keys</h2>
+        <p class="hint">Keys are saved to config.env (mode 600) and never shown again here.</p>
+        <h3 class="sec">Each tier right now</h3>
+        <div id="tiers"></div>
+        <h3 class="sec">Providers</h3>
+        <div id="provs"></div>
+      </section>
+    </div>
   </div>
 </div>
 
