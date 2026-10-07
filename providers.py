@@ -20,7 +20,7 @@ Commands
   providers.py opencode-config   write state/opencode.json, print its path
   providers.py ollama-setup      create AGX model aliases with a usable context
 """
-import json, os, re, subprocess, sys, time, urllib.error, urllib.request
+import json, os, re, subprocess, sys, threading, time, urllib.error, urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(BASE, "state")
@@ -87,10 +87,12 @@ PROVIDERS = {
         "blurb": "GLM-5.x, Kimi K3, Qwen3 Coder 480B on free credits",
         "tiers": {
             "big": [r"^z-ai/glm-5(\.\d+)?$", r"^moonshotai/kimi-k\d",
-                    r"^qwen/qwen3-coder-480b", r"^qwen/qwen3\.5-397b",
-                    r"^deepseek-ai/deepseek-v4-pro-\d+$", r"^minimaxai/minimax-m\d",
-                    r"^mistralai/mistral-large-3"],
-            "small": [r"^z-ai/glm-5(\.\d+)?-flash$", r"^deepseek-ai/deepseek-v4(\.\d+)?-flash$",
+                    r"^nvidia/nemotron-3-ultra-", r"^qwen/qwen3-coder-480b",
+                    r"^qwen/qwen3\.5-397b", r"^deepseek-ai/deepseek-v4-pro-\d+$",
+                    r"^minimaxai/minimax-m\d", r"^mistralai/mistral-large-3",
+                    r"^nvidia/nemotron-3-super-"],
+            "small": [r"^z-ai/glm-5(\.\d+)?-flash$", r"^nvidia/nemotron-3-super-",
+                      r"^deepseek-ai/deepseek-v4(\.\d+)?-flash$",
                       r"^nvidia/nemotron-3\.5-lightning", r"^qwen/qwen3-next-80b",
                       r"^qwen/qwen2\.5-coder-32b", r"^openai/gpt-oss-20b$"],
             "vision": [r"^z-ai/glm-5(\.\d+)?-flash$", r"^moonshotai/kimi-k3",
@@ -270,6 +272,34 @@ def cool(prov, seconds):
     _save("provider-rest.json", d)
 
 
+# A provider's model list says what it offers, not what answers. A model that
+# returns 404 is listed but not served; one that sends nothing back is queued
+# out on the free tier. Either one rests so the next model is tried instead,
+# and comes back on its own when the rest runs out.
+DEAD_REST = 24 * 3600
+STUCK_REST = 30 * 60
+
+
+def resting(prov, model):
+    """Seconds left on a model's rest after it failed to answer."""
+    left = _load("model-rest.json", {}).get(f"{prov}/{model}", 0) - time.time()
+    return max(0, int(left))
+
+
+_REST_LOCK = threading.Lock()
+
+
+def rest_model(prov, model, seconds):
+    with _REST_LOCK:          # parallel probes fail together
+        now = time.time()
+        d = {k: v for k, v in _load("model-rest.json", {}).items() if v > now}
+        d[f"{prov}/{model}"] = now + seconds
+        try:
+            _save("model-rest.json", d)
+        except OSError:
+            pass              # another process is writing it; the next failure retries
+
+
 def natkey(s):
     return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", s.lower())]
 
@@ -285,29 +315,76 @@ def key_hint(prov):
 
 
 # ------------------------------------------------------------------ http
-def _http(url, payload=None, key="", timeout=180):
+def _request(url, payload=None, key="", stream=False):
     data = json.dumps(payload).encode() if payload is not None else None
     # Cloudflare-fronted APIs (Groq among them) answer Python's default
     # User-Agent with 403 "error code: 1010" before looking at the key.
     headers = {"Content-Type": "application/json", "User-Agent": "AGX/1.0",
                "HTTP-Referer": "https://localhost/agx", "X-Title": "AGX"}
+    if stream:
+        headers["Accept"] = "text/event-stream"
     if key:
         headers["Authorization"] = f"Bearer {key}"
-    req = urllib.request.Request(url, data=data, headers=headers)
+    return urllib.request.Request(url, data=data, headers=headers)
+
+
+def _http_error(e):
+    body = e.read().decode(errors="replace")[:300]
+    if e.code == 429:
+        try:
+            wait = int(e.headers.get("Retry-After", "120"))
+        except ValueError:
+            wait = 120
+        return RateLimited(f"rate limited: {body}", wait)
+    return ProviderError(f"HTTP {e.code}: {body}")
+
+
+def _http(url, payload=None, key="", timeout=180):
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(_request(url, payload, key), timeout=timeout) as r:
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")[:300]
-        if e.code == 429:
-            try:
-                wait = int(e.headers.get("Retry-After", "120"))
-            except ValueError:
-                wait = 120
-            raise RateLimited(f"rate limited: {body}", wait)
-        raise ProviderError(f"HTTP {e.code}: {body}")
+        raise _http_error(e)
     except Exception as e:  # timeouts, DNS, refused connections
         raise ProviderError(f"unreachable: {e}")
+
+
+def _stream(url, payload, key, idle):
+    """POST a chat request with stream=True and return the answer text.
+
+    The timeout applies to each wait for data, not to the whole reply: a model
+    that never starts fails after `idle` seconds, while a long answer that keeps
+    arriving is never cut off. Reasoning deltas are dropped."""
+    parts = []
+    try:
+        with urllib.request.urlopen(_request(url, dict(payload, stream=True), key, True),
+                                    timeout=idle) as r:
+            if "event-stream" not in r.headers.get("Content-Type", ""):
+                return _text(json.loads(r.read().decode())["choices"][0]["message"]["content"])
+            for raw in r:
+                line = raw.decode("utf-8", "replace").strip()
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data)
+                except ValueError:
+                    continue
+                if chunk.get("error"):
+                    raise ProviderError(f"stream error: {json.dumps(chunk['error'])[:200]}")
+                for ch in chunk.get("choices") or []:
+                    parts.append((ch.get("delta") or {}).get("content") or "")
+    except urllib.error.HTTPError as e:
+        raise _http_error(e)
+    except ProviderError:
+        raise
+    except (KeyError, IndexError, TypeError) as e:
+        raise ProviderError(f"unexpected reply: {e}")
+    except Exception as e:  # timeouts, DNS, refused connections
+        raise ProviderError(f"unreachable: {e}")
+    return _text("".join(parts))
 
 
 # ------------------------------------------------------------------ ollama
@@ -419,6 +496,7 @@ def resolve(prov, tier, avail=None):
         if caps is not None:
             need = "vision" if tier == "vision" else "completion"
             hits = [m for m in hits if need in caps.get(m, [])]
+        hits = [m for m in hits if not resting(prov, m)]
         if hits:
             return sorted(hits, key=natkey, reverse=True)[0]
     return None
@@ -473,37 +551,54 @@ def _ollama_chat(model, messages, temperature, timeout):
 
 
 def call(prov, model, messages, temperature=0.2, timeout=None):
+    """One chat call. For cloud providers `timeout` is the longest wait for the
+    next piece of the streamed reply. A model that is not served (404) or never
+    starts answering (timeout, 5xx) rests, so the next pick skips it."""
     if PROVIDERS[prov].get("local"):
         return _ollama_chat(model, messages, temperature, timeout or 900)
-    r = _http(PROVIDERS[prov]["url"] + "/chat/completions",
-              {"model": model, "messages": messages, "temperature": temperature},
-              key=key_for(prov), timeout=timeout or 180)
     try:
-        return _text(r["choices"][0]["message"]["content"])
-    except (KeyError, IndexError, TypeError):
-        raise ProviderError(f"unexpected reply: {json.dumps(r)[:200]}")
+        return _stream(PROVIDERS[prov]["url"] + "/chat/completions",
+                       {"model": model, "messages": messages, "temperature": temperature},
+                       key_for(prov), timeout or 90)
+    except RateLimited:
+        raise
+    except ProviderError as e:
+        if re.search(r"HTTP 40[4]|HTTP 410", str(e)):
+            rest_model(prov, model, DEAD_REST)
+        elif re.search(r"timed out|HTTP 5\d\d", str(e)):
+            rest_model(prov, model, STUCK_REST)
+        raise
 
 
 def chat(messages, tier="small", temperature=0.2):
-    """Run a chat on the best free model for the tier, falling through to the
-    next provider when one is rate limited, rejects the key or is down.
+    """Run a chat on the best free model for the tier. A model that fails to
+    answer rests and the same provider's next model is tried; a provider that
+    is rate limited, rejects the key or is down is skipped for the next one.
     Returns (text, "provider/model")."""
-    tried, errors = [], []
-    while True:
+    tried, errors, strikes = [], [], {}
+    for _ in range(12):
         prov, model = pick(tier, exclude=tried)
         if not prov:
-            detail = "; ".join(errors) or "no provider is configured for this tier"
-            raise ProviderError(f"no {tier} model available ({detail})")
+            break
         try:
             return call(prov, model, messages, temperature), f"{prov}/{model}"
         except RateLimited as e:
             cool(prov, min(max(e.retry_after, 30), 3600))
             errors.append(f"{prov}: rate limited")
+            tried.append(prov)
         except ProviderError as e:
+            errors.append(f"{prov}/{model}: {str(e)[:120]}")
             if re.search(r"HTTP 40[13]", str(e)):
                 cool(prov, 3600)          # rejected key: stop trying for an hour
-            errors.append(f"{prov}: {str(e)[:120]}")
-        tried.append(prov)
+                tried.append(prov)
+            elif not resting(prov, model):
+                # A dropped connection is retried once before the provider
+                # is given up on for this call.
+                strikes[prov] = strikes.get(prov, 0) + 1
+                if strikes[prov] > 1:
+                    tried.append(prov)
+    detail = "; ".join(errors) or "no provider is configured for this tier"
+    raise ProviderError(f"no {tier} model available ({detail})")
 
 
 # ------------------------------------------------------------------ opencode

@@ -454,6 +454,9 @@ async function addProject(path) {
 // proved it can.
 const WS = {tier: 'big', model: '', log: [], image: null, busy: false, state: null, loaded: false, rows: new Map()};
 const TIER_NOTE = {small: 'fast and cheap', big: 'strongest reasoning', vision: 'understands images'};
+// "nvidia/nvidia/nemotron-…" reads badly; show the model, then where it runs.
+const via = (prov, model) => `${model} via ${prov}`;
+const viaRef = ref => { const i = (ref || '').indexOf('/'); return i < 0 ? ref : via(ref.slice(0, i), ref.slice(i + 1)); };
 
 async function wsRefresh() {
   WS.loaded = true;
@@ -469,7 +472,7 @@ function renderWsState() {
   setHTML($('#tiers'), ['small', 'big', 'vision'].map(t => {
     const v = s.tiers[t] || {};
     return `<div><span>${t[0].toUpperCase() + t.slice(1)}</span>${v.provider
-      ? `<span class="code" style="color:var(--paper)">${esc(v.provider)}/${esc(v.model)}</span>`
+      ? `<span class="code" style="color:var(--paper)">${esc(via(v.provider, v.model))}</span>`
       : '<span class="none">Nothing available</span>'}</div>`;
   }).join(''));
   renderModelPicker();
@@ -485,8 +488,8 @@ function renderWsState() {
 function renderTierHint() {
   const s = WS.state, v = s && s.tiers[WS.tier];
   setText($('#tierhint'), !s ? 'Checking which models are available…'
-    : WS.model ? `You picked ${WS.model.replace('|', '/')}. The size buttons apply to Auto only.`
-    : v && v.provider ? `${WS.tier[0].toUpperCase() + WS.tier.slice(1)} (${TIER_NOTE[WS.tier]}) is answered by ${v.provider}/${v.model} right now.`
+    : WS.model ? `You picked ${via(...WS.model.split('|'))}. The size buttons apply to Auto only.`
+    : v && v.provider ? `${WS.tier[0].toUpperCase() + WS.tier.slice(1)} (${TIER_NOTE[WS.tier]}) is answered by ${via(v.provider, v.model)} right now.`
     : `Nothing can answer at this size. Add a key or start Ollama.`);
 }
 // Every model a ready provider offers, grouped by provider, so a specific one
@@ -497,7 +500,8 @@ function renderModelPicker() {
   list.forEach(m => { (groups[m.label] = groups[m.label] || []).push(m); });
   setHTML(sel, '<option value="">Auto: the best free model for this size</option>'
     + Object.entries(groups).map(([label, ms]) => `<optgroup label="${esc(label)}">${ms.map(m =>
-      `<option value="${esc(m.provider + '|' + m.model)}">${esc(m.model)} (${esc(m.tiers.join(', '))})</option>`).join('')}</optgroup>`).join(''));
+      `<option value="${esc(m.provider + '|' + m.model)}">${esc(m.model)} (${esc(m.tiers.join(', '))})${m.resting
+        ? `, not answering, retried in ${Math.ceil(m.resting / 60)} min` : ''}</option>`).join('')}</optgroup>`).join(''));
   if (WS.model && !list.some(m => m.provider + '|' + m.model === WS.model)) WS.model = '';
   if (sel.value !== WS.model) sel.value = WS.model;
   const cloud = (WS.state.providers || []).some(r => !r.local && r.ready);
@@ -577,7 +581,7 @@ function renderWsLog() {
       <div class="by">${m.err ? 'Error' : m.role === 'user' ? 'You' : 'Model'}</div>
       ${m.content ? `<div class="body">${esc(m.content)}</div>` : ''}
       ${m.image ? `<img src="${esc(m.image)}" alt="${m.role === 'user' ? 'Attached image' : 'Made image'}">` : ''}
-      ${m.model ? `<div class="meta">Answered by <code>${esc(m.model)}</code>${m.tier ? ', ' + esc(m.tier) : ''}</div>` : ''}
+      ${m.model ? `<div class="meta">Answered by <code>${esc(viaRef(m.model))}</code>${m.tier ? ', ' + esc(m.tier) : ''}</div>` : ''}
       ${m.kind === 'gen' && m.image && m.role !== 'user' ? `<a class="btn" style="margin-top:8px" href="${esc(m.image)}" download="agx-image.${ext}">Save image</a>` : ''}
     </div>`;
   }).join('');

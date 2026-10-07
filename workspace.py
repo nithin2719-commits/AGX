@@ -97,8 +97,8 @@ def choices():
         for tier in TIERS:
             for m in _matches(prov, tier, avail, caps):
                 seen.setdefault(m, []).append(tier)
-        out += [{"provider": prov, "label": cfg["label"], "model": m, "tiers": t}
-                for m, t in seen.items()]
+        out += [{"provider": prov, "label": cfg["label"], "model": m, "tiers": t,
+                 "resting": providers.resting(prov, m)} for m, t in seen.items()]
     return out
 
 
@@ -225,6 +225,24 @@ def save_key(body):
     return {"ok": True, "msg": f"saved {var} to config.env - press TEST to check it"}
 
 
+def _probe_all(prov, avail):
+    """Ask every model the tiers would pick a one-word question at once. A
+    model that is listed but not served, or never starts answering, rests in
+    providers.py, so routing skips it from the first real chat on."""
+    from concurrent.futures import ThreadPoolExecutor
+    cands = sorted({m for t in TIERS for m in _matches(prov, t, avail)})
+
+    def one(m):
+        try:
+            providers.call(prov, m, [{"role": "user", "content": "Reply with exactly: OK"}], timeout=30)
+            return True
+        except ProviderError:
+            return False
+    with ThreadPoolExecutor(8) as ex:
+        ok = sum(ex.map(one, cands))
+    return f"; {ok} of {len(cands)} candidate models answered" if cands else ""
+
+
 def test_key(body):
     """One tiny call, and the model this provider would serve for each tier."""
     prov = body.get("provider", "")
@@ -238,6 +256,7 @@ def test_key(body):
     else:
         try:
             avail = providers.models(prov, refresh=True)
+            probed = "" if cfg.get("local") else _probe_all(prov, avail)
             res["tiers"] = {t: providers.resolve(prov, t, avail) or "" for t in TIERS}
             model = res["tiers"]["small"] or res["tiers"]["big"]
             if not model:
@@ -245,9 +264,9 @@ def test_key(body):
             else:
                 t0 = time.time()
                 out = providers.call(prov, model, [{"role": "user", "content": "Reply with exactly: OK"}],
-                                     timeout=180)
+                                     timeout=60)
                 res.update(ok=True, msg=f"{model} replied {out[:40]!r} in {time.time() - t0:.1f}s "
-                                        f"({len(avail)} models available)")
+                                        f"({len(avail)} models listed{probed})")
         except ProviderError as e:
             res["msg"] = f"key rejected or provider down: {str(e)[:200]}"
     tests = _load("key-tests.json")
