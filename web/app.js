@@ -452,7 +452,7 @@ async function addProject(path) {
 // Chat with the free models (providers.py picks the model for each size),
 // ask about an image, manage API keys, and make images where a provider has
 // proved it can.
-const WS = {tier: 'big', model: '', log: [], image: null, busy: false, state: null, rows: new Map()};
+const WS = {task: '', tier: 'big', model: '', log: [], image: null, busy: false, state: null, rows: new Map()};
 const TIER_NOTE = {small: 'fast and cheap', big: 'strongest reasoning', vision: 'understands images'};
 // "nvidia/nvidia/nemotron-…" reads badly; show the model, then where it runs.
 const via = (prov, model) => `${model} via ${prov}`;
@@ -474,8 +474,9 @@ function renderWsState() {
       ? `<span class="code" style="color:var(--paper)">${esc(via(v.provider, v.model))}</span>`
       : '<span class="none">Nothing available</span>'}</div>`;
   }).join(''));
+  renderTasks();
   renderModelPicker();
-  renderTierHint();
+  renderWhy();
   const box = $('#provs');
   for (const r of s.providers) {
     let row = WS.rows.get(r.id);
@@ -483,12 +484,38 @@ function renderWsState() {
     updateProvRow(row, r);
   }
   renderImageGen();
+  syncSend();
 }
-function renderTierHint() {
-  const s = WS.state, v = s && s.tiers[WS.tier];
-  setText($('#tierhint'), !s ? 'Checking which models are available…'
-    : WS.model ? `You picked ${via(...WS.model.split('|'))}. The size buttons apply to Auto only.`
-    : v && v.provider ? `${WS.tier[0].toUpperCase() + WS.tier.slice(1)} (${TIER_NOTE[WS.tier]}) is answered by ${via(v.provider, v.model)} right now.`
+// One chip per kind of work, plus Any. Active when its task is chosen and no
+// exact model is pinned.
+function renderTasks() {
+  const tasks = (WS.state && WS.state.tasks) || [];
+  const active = id => !WS.model && WS.task === id;
+  const chip = (id, label) => `<button class="chip${active(id) ? ' on' : ''}" role="radio"
+    aria-checked="${active(id)}" data-do="task" data-task="${esc(id)}">${esc(label)}</button>`;
+  setHTML($('#tasks'), chip('', 'Any · auto') + tasks.map(t => chip(t.id, t.label)).join(''));
+}
+function renderWhy() {
+  const s = WS.state, seg = $('#sizeseg'), line = $('#taskwhy');
+  if (!s) { setText(line, 'Checking which models are available…'); return; }
+  if (WS.model) {
+    seg.hidden = true;
+    const m = (s.models || []).find(x => x.provider + '|' + x.model === WS.model);
+    setHTML(line, `Using <b>${esc(via(...WS.model.split('|')))}</b>${m && m.resting ? ', which is resting — it may fall back' : ''}.`);
+    return;
+  }
+  if (WS.task) {
+    seg.hidden = true;
+    const t = (s.tasks || []).find(x => x.id === WS.task);
+    setHTML(line, t && t.provider
+      ? `Using <b>${esc(via(t.provider, t.model))}</b>. ${esc(t.why)}`
+      : (t ? esc(t.why) : ''));
+    return;
+  }
+  seg.hidden = false;
+  const v = s.tiers[WS.tier] || {};
+  setHTML(line, v.provider
+    ? `Auto picks the best free model for the size. <b>${esc(WS.tier[0].toUpperCase() + WS.tier.slice(1))}</b> (${TIER_NOTE[WS.tier]}) is <b>${esc(via(v.provider, v.model))}</b> now.`
     : `Nothing can answer at this size. Add a key or start Ollama.`);
 }
 // Every model a ready provider offers, grouped by provider, so a specific one
@@ -497,10 +524,10 @@ function renderModelPicker() {
   const sel = $('#wsmodel'), list = WS.state.models || [];
   const groups = {};
   list.forEach(m => { (groups[m.label] = groups[m.label] || []).push(m); });
-  setHTML(sel, '<option value="">Auto: the best free model for this size</option>'
-    + Object.entries(groups).map(([label, ms]) => `<optgroup label="${esc(label)}">${ms.map(m =>
+  setHTML(sel, '<option value="">Follow the task above</option>'
+    + Object.entries(groups).map(([label, ms]) => `<optgroup label="${esc(label)} (${ms.length})">${ms.map(m =>
       `<option value="${esc(m.provider + '|' + m.model)}">${esc(m.model)} (${esc(m.tiers.join(', '))})${m.resting
-        ? `, not answering, retried in ${Math.ceil(m.resting / 60)} min` : ''}</option>`).join('')}</optgroup>`).join(''));
+        ? `, resting ${Math.ceil(m.resting / 60)} min` : ''}</option>`).join('')}</optgroup>`).join(''));
   if (WS.model && !list.some(m => m.provider + '|' + m.model === WS.model)) WS.model = '';
   if (sel.value !== WS.model) sel.value = WS.model;
   const cloud = (WS.state.providers || []).some(r => !r.local && r.ready);
@@ -595,17 +622,20 @@ async function wsSend() {
   const pending = {role: 'assistant', content: image ? 'Looking at the image…' : 'Thinking…', pending: true};
   WS.log.push({role: 'user', content: text, image, kind: 'text'}, pending);
   ta.value = '';
+  grow(ta);
   unattach();
   renderWsLog();
   WS.busy = true;
+  syncSend();
   try {
-    const j = await post({action: 'ws_chat', tier: WS.tier, model: WS.model, image,
+    const j = await post({action: 'ws_chat', tier: WS.tier, task: WS.task, model: WS.model, image,
                           messages: history.concat([{role: 'user', content: text}])});
     Object.assign(pending, j.ok ? {content: j.reply, model: j.model, tier: j.tier, kind: 'text'}
                                 : {content: j.msg || 'Failed', err: true});
   } catch (e) { Object.assign(pending, {content: 'Request failed: ' + e, err: true}); }
   pending.pending = false;
   WS.busy = false;
+  syncSend();
   renderWsLog();
 }
 function readURL(file) {
@@ -640,8 +670,9 @@ async function attachFile(file) {
   $('img', a).src = WS.image.url;
   setText($('span', a), `${WS.image.name}. Questions about it go to a vision model.`);
   a.hidden = false;
+  syncSend();
 }
-function unattach() { WS.image = null; $('#attach').hidden = true; $('#attach img').removeAttribute('src'); }
+function unattach() { WS.image = null; $('#attach').hidden = true; $('#attach img').removeAttribute('src'); syncSend(); }
 async function wsCall(btn, body, after) {
   const label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Working…';
@@ -700,10 +731,17 @@ const DO = {
   ask(btn, p) { ask(p, btn.dataset.agent); },
   explain(btn, p) { converse(p, 'claude', null, {action: 'explain', project: p}); },
   closeOv,
+  task(btn) {
+    WS.task = btn.dataset.task;
+    WS.model = '';
+    const sel = $('#wsmodel'); if (sel) sel.value = '';
+    renderTasks();
+    renderWhy();
+  },
   tier(btn) {
     WS.tier = btn.dataset.tier;
-    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-checked', String(b === btn)));
-    renderTierHint();
+    document.querySelectorAll('#sizeseg button').forEach(b => b.setAttribute('aria-checked', String(b === btn)));
+    renderWhy();
   },
   wsSend,
   pickImage() { $('#wsfile').click(); },
@@ -772,7 +810,16 @@ $('#note').addEventListener('input', e => {
     n._dirty = false;
   }, 900);
 });
-$('#wsmodel').addEventListener('change', e => { WS.model = e.target.value; renderTierHint(); });
+$('#wsmodel').addEventListener('change', e => {
+  WS.model = e.target.value;            // an exact model overrides the task pick
+  renderTasks();
+  renderWhy();
+});
+$('#wsq').addEventListener('input', e => { grow(e.target); syncSend(); });
+function syncSend() {
+  const btn = $('.c-send');
+  if (btn) btn.disabled = WS.busy || !($('#wsq').value.trim() || WS.image);
+}
 $('#wsfile').addEventListener('change', e => { attachFile(e.target.files[0]); e.target.value = ''; });
 $('#wsq').addEventListener('paste', e => {
   const f = [...((e.clipboardData || {}).files || [])].find(x => x.type.startsWith('image/'));
