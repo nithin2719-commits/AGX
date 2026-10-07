@@ -92,21 +92,29 @@ Put it on its own branch first so your `main` stays clean:
 
 ## The Workspace tab
 
-Chat with the free models without spending Claude or agy quota.
+A private chat for yourself, on the free models, without spending Claude or
+agy quota.
 
-- **Small / Big / Vision** picks the model size. The line under it says which model
-  answers that tier right now, and every reply names the model that wrote it.
-- **Model** picks one by name instead, e.g. NVIDIA's newest `z-ai/glm-5.x`,
-  Kimi K3 or Qwen3 Coder 480B. It lists what each provider with a working key
-  offers, so cloud models appear once you save a key (NVIDIA's is free at
-  build.nvidia.com). **Auto** lets the tier choose and falls back between
-  providers.
-- **Attach image** (or paste one) and ask about it. Images always go to the
-  vision tier, the same as `python3 router.py see <image>`.
-- **Models and keys**: open a provider, paste its key and press **Save key**. It is written
-  to `config.env` with mode 600 and is never shown in the browser again.
-  **Test** makes one tiny call and lists the model the provider would use for
-  each tier. With no keys at all, everything runs on Ollama if it is up.
+- **Pick what you're working on** with the chips: Code, Reasoning, Images,
+  Cyber / CTF, Quick or Writing. AGX uses the model made for that work, and the
+  line underneath names the model and why. **Cyber / CTF** stays on a local
+  Ollama model first, so nothing about a target leaves the machine.
+- **Any · auto** instead lets you choose the size — **Small / Big / Vision** —
+  and AGX picks the best free model for it. Every reply names the model that
+  wrote it, as `model via provider`.
+- **Pick a model** opens the full list — every model each provider with a
+  working key offers — to pin one exact model instead of the task pick. A model
+  that is not answering is marked and skipped.
+- **Attach image** (the + in the box, or paste one) and ask about it. Images
+  always go to a vision model, the same as `python3 router.py see <image>`.
+- Type in the glowing box and press **Ctrl+Enter** or the arrow to send.
+- **Models and keys**: open a provider, paste its key and press **Save key**. It
+  is written to `config.env` (mode 600) and never shown in the browser again.
+  **Test** makes one tiny call and lists the model it would use for each size.
+  With no keys at all, everything runs on Ollama if it is up. Providers: NVIDIA
+  NIM (free — GLM-5.x, Kimi K3, Nemotron 550B), OpenRouter (free tier), GitHub
+  Models (free GPT-4.1, DeepSeek, Llama with a GitHub token), Google Gemini,
+  Z.ai, Groq, Cerebras and Mistral.
 - **Make an image** works only after a provider passes **Test images**
   with a real image. NVIDIA NIM and Gemini are the candidates. Ollama refuses
   image models over its API, so it is never offered.

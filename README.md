@@ -72,8 +72,8 @@ time, and sits idle whenever you are not driving it. AGX turns that into a team:
 | **Understand the codebase** | Graphify builds an AST-level graph — call relationships, hub functions, communities — so agents navigate instead of grepping blindly. |
 | **Choose the workers** | Per project, select which agents run and which model each uses, from the fastest cheap tier to the strongest reasoning model. |
 | **Fall back to free APIs** | With no Claude/agy quota, a free-tier worker handles the lighter tasks through `providers.py`: any configured free cloud tier, or Ollama on this machine. |
-| **Chat with free models** | The dashboard's Workspace tab chats with the small, big or vision tier and names the model behind every reply. Attach an image to ask about it. |
-| **Manage API keys** | Paste and test a key per provider in the Workspace tab. Keys stay in `config.env` (mode 600) and are never sent back to the browser. |
+| **Chat with free models** | The Workspace tab is a private chat for you. Pick what you're working on — Code, Reasoning, Images, Cyber/CTF, Quick, Writing — and it uses the model made for it, or pin any model by name. Attach an image to ask about it. |
+| **Bring your own free models** | Paste and test a key per provider in the Workspace: NVIDIA NIM, OpenRouter, GitHub Models, Gemini, Z.ai, Groq, Cerebras, Mistral. Keys stay in `config.env` (mode 600), never sent back to the browser. A model that stops answering is skipped and retried later. |
 | **Steer from your phone** | `tailnet.sh` publishes the dashboard over HTTPS on your Tailscale network; each device signs in once with the dashboard token. |
 | **Add project tools** | Enable MCP servers per project (for example, offensive-security tooling for a CTF repo) without affecting any other project. |
 | **Assign roles** | Give each agent an engineering role — AI engineer, backend architect, code reviewer — that shapes how it argues in meetings. |
