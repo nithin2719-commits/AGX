@@ -24,25 +24,30 @@ every restart, so a bookmarked URL goes stale.
 
 ## Doing work
 
-Everything is a button on the Operations tab. On each project card:
+The Operations tab opens with a sentence saying what the crew is doing, your
+focus note, and the whole-team buttons: **Auto cycle** (meet where work ran out,
+then work), **Run team**, **Pixel office**, **Add project** and **Stop everything**
+(kills every agent and turns off the timers).
+
+Below it, pick a project from the list on the left (on a phone, tap it; **All
+projects** goes back). Its page has:
 
 | Button | Meaning |
 |---|---|
-| **CLAUDE** / **AGY** | that agent does one task now |
-| **BOTH** | both agents, taking turns on the project |
-| **MEETING** | both agents discuss and agree the next tasks (10-20 min) |
-| **PLAN** | edit what you want them to do, then SAVE PLAN |
-| **ADD** | type a task straight into the backlog |
-| **ASK** | ask Claude or agy about the project, or WHAT HAPPENED? to read the logs |
-| **DETAILS** | meeting transcripts, work logs, recent commits |
-| **BUILD GRAPH** / **VIEW GRAPH** | rebuild or open the code knowledge graph |
-| **COMMIT** / **PUSH** | commit what the agents left, publish the branch (asks first) |
-| **STOP** | stop that project's agents |
+| **Claude** / **agy** | that agent does one task now |
+| **Both** | both agents, taking turns on the project |
+| **Meeting** | both agents discuss and agree the next tasks (10-20 min) |
+| **Stop** | stop that project's agents |
+| **Add** | type a task straight into the backlog |
+| **Plan** tab, **Edit plan** | what you want them to do; **Save plan** to keep it |
+| **Tasks** tab | every task, done, in progress and waiting |
+| **Ask** tab | ask Claude or agy about the project, or **What happened?** to read the logs |
+| **Details** tab | meeting transcripts, work logs, recent commits |
+| **Build graph** / **View graph** | rebuild or open the code knowledge graph |
+| **Commit** / **Push** | commit what the agents left, publish the branch (asks first) |
 
-Click a project's name for a full-screen view of it. Along the top:
-**AUTO CYCLE** (meet where work ran out, then work), **RUN TEAM**, **PIXEL OFFICE**,
-**+ ADD PROJECT** and **STOP EVERYTHING** (kills every agent and disables the timers).
-Typed text, open panels and the ask-the-agents chat survive the page's refresh.
+Typed text, draft plans and the conversation survive the page's refresh and
+switching between projects.
 
 Same thing from the terminal:
 
@@ -89,20 +94,20 @@ Put it on its own branch first so your `main` stays clean:
 
 Chat with the free models without spending Claude or agy quota.
 
-- **SMALL / BIG / VISION** picks the tier. The line under it says which model
+- **Small / Big / Vision** picks the model size. The line under it says which model
   answers that tier right now, and every reply names the model that wrote it.
 - **Model** picks one by name instead, e.g. NVIDIA's newest `z-ai/glm-5.x`,
   Kimi K3 or Qwen3 Coder 480B. It lists what each provider with a working key
   offers, so cloud models appear once you save a key (NVIDIA's is free at
   build.nvidia.com). **Auto** lets the tier choose and falls back between
   providers.
-- **ATTACH IMAGE** (or paste one) and ask about it. Images always go to the
+- **Attach image** (or paste one) and ask about it. Images always go to the
   vision tier, the same as `python3 router.py see <image>`.
-- **API keys**: paste a key next to a provider and press **SAVE**. It is written
+- **Models and keys**: open a provider, paste its key and press **Save key**. It is written
   to `config.env` with mode 600 and is never shown in the browser again.
-  **TEST** makes one tiny call and lists the model the provider would use for
+  **Test** makes one tiny call and lists the model the provider would use for
   each tier. With no keys at all, everything runs on Ollama if it is up.
-- **Generate an image** appears only after a provider passes **TEST IMAGE**
+- **Make an image** works only after a provider passes **Test images**
   with a real image. NVIDIA NIM and Gemini are the candidates. Ollama refuses
   image models over its API, so it is never offered.
 

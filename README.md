@@ -45,17 +45,17 @@ time, and sits idle whenever you are not driving it. AGX turns that into a team:
 
 ## Screenshots
 
-<img src="assets/dashboard.png" alt="AGX dashboard: control bar, model picker, stats and live activity feed" width="100%">
+<img src="assets/dashboard.png" alt="AGX console: a sentence saying what the crew is doing, the team buttons, the project list and one project's detail" width="100%">
 
-<p align="center"><sub><b>The console.</b> Start or stop the whole team, choose a model per agent, and watch every commit land in the live feed.</sub></p>
+<p align="center"><sub><b>The console.</b> It opens with what the crew is doing right now, then every project on the left and one project's agents, progress and buttons on the right.</sub></p>
 
 <table>
 <tr>
-<td width="40%" valign="top"><img src="assets/project-details.png" alt="A project card with plan, agent status, meetings, work logs and recent commits"></td>
+<td width="40%" valign="top"><img src="assets/project-details.png" alt="One project on a phone: its agents, progress and buttons"></td>
 <td width="60%" valign="top"><img src="assets/code-graph.png" alt="Graphify code graph for a project, coloured by community"></td>
 </tr>
 <tr>
-<td align="center"><sub><b>Project card.</b> Plan, agent status, planning meetings, work logs and recent commits.</sub></td>
+<td align="center"><sub><b>On your phone.</b> Over Tailscale a project opens on its own screen, with its plan, tasks, meetings and logs a tab away.</sub></td>
 <td align="center"><sub><b>Code graph.</b> The Graphify map agents navigate by: 282 nodes, 585 edges, 14 communities.</sub></td>
 </tr>
 </table>
