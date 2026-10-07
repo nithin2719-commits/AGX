@@ -175,7 +175,11 @@ if [ -n "$MODEL" ]; then
   if [ "$EFFORT" != "$MODEL" ] && [ -n "$EFFORT" ]; then
     MODEL_ARG="$MODEL_ARG --effort $EFFORT"
   fi
-  echo "[$STAMP] using model: $BASE_MODEL${EFFORT:+ (effort $EFFORT)}" >>"$LOG"
+  if [ "$EFFORT" != "$MODEL" ] && [ -n "$EFFORT" ]; then
+    echo "[$STAMP] using model: $BASE_MODEL (effort $EFFORT)" >>"$LOG"
+  else
+    echo "[$STAMP] using model: $BASE_MODEL" >>"$LOG"
+  fi
 fi
 
 # CRITICAL: the prompt must come IMMEDIATELY after -p. Both CLIs treat -p as
