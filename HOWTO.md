@@ -91,6 +91,11 @@ Chat with the free models without spending Claude or agy quota.
 
 - **SMALL / BIG / VISION** picks the tier. The line under it says which model
   answers that tier right now, and every reply names the model that wrote it.
+- **Model** picks one by name instead, e.g. NVIDIA's newest `z-ai/glm-5.x`,
+  Kimi K3 or Qwen3 Coder 480B. It lists what each provider with a working key
+  offers, so cloud models appear once you save a key (NVIDIA's is free at
+  build.nvidia.com). **Auto** lets the tier choose and falls back between
+  providers.
 - **ATTACH IMAGE** (or paste one) and ask about it. Images always go to the
   vision tier, the same as `python3 router.py see <image>`.
 - **API keys**: paste a key next to a provider and press **SAVE**. It is written

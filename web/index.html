@@ -71,6 +71,11 @@
               <button role="radio" aria-checked="false" data-do="tier" data-tier="vision">VISION</button>
             </div>
           </div>
+          <div class="ws-pick">
+            <label class="label" for="wsmodel">Model</label>
+            <select id="wsmodel"><option value="">Auto - the best free model for the tier</option></select>
+            <p class="hint" id="cloudhint" hidden></p>
+          </div>
           <p class="hint" id="tierhint">checking which models are available…</p>
           <div id="wslog" class="wslog" aria-live="polite"></div>
           <div id="attach" class="attach" hidden>

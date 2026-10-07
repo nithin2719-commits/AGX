@@ -534,7 +534,7 @@ $('#note').addEventListener('input', e => {
 // Chat with the free models (providers.py picks the model for each tier),
 // ask about an image, manage API keys, and generate images where a provider
 // has proved it can.
-const WS = {tier: 'big', log: [], image: null, busy: false, state: null, loaded: false, rows: new Map()};
+const WS = {tier: 'big', model: '', log: [], image: null, busy: false, state: null, loaded: false, rows: new Map()};
 const TIER_NOTE = {small: 'fast and cheap', big: 'strongest reasoning', vision: 'understands images'};
 
 function showTab(t) {
@@ -562,6 +562,7 @@ function renderWsState() {
     return `<div class="tierrow"><b>${t}</b>${v.provider
       ? `<span>${esc(v.provider)}/${esc(v.model)}</span>` : '<span class="none">nothing available</span>'}</div>`;
   }).join(''));
+  renderModelPicker();
   renderTierHint();
   const box = $('#provs');
   for (const r of s.providers) {
@@ -574,8 +575,26 @@ function renderWsState() {
 function renderTierHint() {
   const s = WS.state, v = s && s.tiers[WS.tier];
   setText($('#tierhint'), !s ? 'checking which models are available…'
+    : WS.model ? `you picked ${WS.model.replace('|', '/')} - the tier buttons apply to Auto only`
     : v && v.provider ? `${WS.tier} (${TIER_NOTE[WS.tier]}) is answered by ${v.provider}/${v.model} right now`
     : `nothing can answer the ${WS.tier} tier - add a key or start Ollama`);
+}
+// Every model a ready provider offers for its tiers, grouped by provider, so a
+// specific one (say NVIDIA's newest GLM) can be picked by name.
+function renderModelPicker() {
+  const sel = $('#wsmodel'), list = WS.state.models || [];
+  const groups = {};
+  list.forEach(m => { (groups[m.label] = groups[m.label] || []).push(m); });
+  setHTML(sel, '<option value="">Auto - the best free model for the tier</option>'
+    + Object.entries(groups).map(([label, ms]) => `<optgroup label="${esc(label)}">${ms.map(m =>
+      `<option value="${esc(m.provider + '|' + m.model)}">${esc(m.model)} (${esc(m.tiers.join(', '))})</option>`).join('')}</optgroup>`).join(''));
+  if (WS.model && !list.some(m => m.provider + '|' + m.model === WS.model)) WS.model = '';
+  if (sel.value !== WS.model) sel.value = WS.model;
+  const cloud = (WS.state.providers || []).some(r => !r.local && r.ready);
+  const hint = $('#cloudhint');
+  hint.hidden = cloud;
+  setText(hint, 'Only local Ollama models are listed. Paste a free NVIDIA NIM key in the API keys '
+    + 'panel (build.nvidia.com) to add GLM-5.x, Kimi K3 and Qwen3 Coder 480B, or a key for any other provider.');
 }
 function makeProvRow(r) {
   const el = document.createElement('div');
@@ -644,7 +663,7 @@ function renderWsLog() {
       <div class="who2">${m.err ? 'ERROR' : m.role === 'user' ? 'YOU' : 'MODEL'}</div>
       ${m.content ? `<div class="body">${esc(m.content)}</div>` : ''}
       ${m.image ? `<img src="${esc(m.image)}" alt="${m.role === 'user' ? 'Attached image' : 'Generated image'}">` : ''}
-      ${m.model ? `<div class="meta">answered by ${esc(m.model)}${m.tier ? ' (' + esc(m.tier) + ' tier)' : ''}</div>` : ''}
+      ${m.model ? `<div class="meta">answered by ${esc(m.model)}${m.tier ? ' (' + esc(m.tier) + ')' : ''}</div>` : ''}
       ${m.kind === 'gen' && m.image && m.role !== 'user' ? `<a class="btn" href="${esc(m.image)}" download="agx-image.${ext}">SAVE IMAGE</a>` : ''}
     </div>`;
   }).join('');
@@ -663,7 +682,7 @@ async function wsSend() {
   renderWsLog();
   WS.busy = true;
   try {
-    const j = await post({action: 'ws_chat', tier: WS.tier, image,
+    const j = await post({action: 'ws_chat', tier: WS.tier, model: WS.model, image,
                           messages: history.concat([{role: 'user', content: text}])});
     Object.assign(pending, j.ok ? {content: j.reply, model: j.model, tier: j.tier, kind: 'text'}
                                 : {content: j.msg || 'failed', err: true});
@@ -759,6 +778,7 @@ Object.assign(DO, {
     renderWsLog();
   },
 });
+$('#wsmodel').addEventListener('change', e => { WS.model = e.target.value; renderTierHint(); });
 $('#wsfile').addEventListener('change', e => { attachFile(e.target.files[0]); e.target.value = ''; });
 $('#wsq').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); wsSend(); } });
 $('#wsq').addEventListener('paste', e => {

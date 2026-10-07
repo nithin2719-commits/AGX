@@ -66,7 +66,40 @@ def state():
     for t in TIERS:
         p, m = providers.pick(t)
         tiers[t] = {"provider": p or "", "model": m or ""}
-    return {"ok": True, "providers": rows, "tiers": tiers}
+    return {"ok": True, "providers": rows, "tiers": tiers, "models": choices()}
+
+
+def _matches(prov, tier, avail, caps=None):
+    """Models of one provider that fit a tier, best pattern first, newest first."""
+    out = []
+    for pat in PROVIDERS[prov]["tiers"][tier]:
+        hits = [m for m in avail if re.search(pat, m, re.I)]
+        if caps is not None:
+            need = "vision" if tier == "vision" else "completion"
+            hits = [m for m in hits if need in caps.get(m, [])]
+        out += [m for m in sorted(hits, key=providers.natkey, reverse=True)[:3] if m not in out]
+    return out
+
+
+def choices():
+    """Models you can pick by name in the chat: for every ready provider, the
+    models its tier patterns match (so a new glm-5.x shows up on its own)."""
+    out = []
+    for prov, cfg in PROVIDERS.items():
+        if not providers.ready(prov):
+            continue
+        try:
+            avail = providers.models(prov)
+        except ProviderError:
+            continue
+        caps = providers.ollama_models() if cfg.get("local") else None
+        seen = {}
+        for tier in TIERS:
+            for m in _matches(prov, tier, avail, caps):
+                seen.setdefault(m, []).append(tier)
+        out += [{"provider": prov, "label": cfg["label"], "model": m, "tiers": t}
+                for m, t in seen.items()]
+    return out
 
 
 # ------------------------------------------------------------------ chat
@@ -100,6 +133,26 @@ def _image_part(data_url):
     return {"type": "image_url", "image_url": {"url": data_url}}
 
 
+def _picked(value, image):
+    """A model chosen by name as (provider, model), or (None, reason)."""
+    prov, _, model = value.partition("|")
+    if prov not in PROVIDERS or not model:
+        return None, "unknown model"
+    if not providers.ready(prov):
+        return None, f"{PROVIDERS[prov]['label']} is not ready - check its key"
+    try:
+        avail = providers.models(prov)
+    except ProviderError as e:
+        return None, f"{prov}: {e}"
+    if model not in avail:
+        return None, f"{prov} no longer offers {model} - pick another"
+    if image:
+        caps = providers.ollama_models() if PROVIDERS[prov].get("local") else None
+        if model not in _matches(prov, "vision", avail, caps):
+            return None, "vision"
+    return prov, model
+
+
 def chat(body):
     tier = body.get("tier", "big")
     if tier not in TIERS:
@@ -108,18 +161,36 @@ def chat(body):
         msgs = _clean_messages(body.get("messages"))
         image = body.get("image")
         if image:
-            # An image always goes to the vision tier, like router.py see.
+            # An image goes to the vision tier, like router.py see, unless the
+            # model picked by name can see images itself.
             tier = "vision"
             last = msgs[-1]
             last["content"] = [{"type": "text", "text": last["content"].strip() or SEE_DEFAULT},
                                _image_part(image)]
     except ValueError as e:
         return {"ok": False, "msg": str(e)}
+    msgs = [{"role": "system", "content": SYSTEM}] + msgs
+    note = ""
+    if body.get("model"):
+        prov, model = _picked(str(body["model"]), image)
+        if prov:
+            try:
+                return {"ok": True, "reply": providers.call(prov, model, msgs) or "(empty reply)",
+                        "model": f"{prov}/{model}", "tier": "picked by name"}
+            except providers.RateLimited as e:
+                providers.cool(prov, min(max(e.retry_after, 30), 3600))
+                return {"ok": False, "msg": f"{prov}/{model} is rate limited - try Auto"}
+            except ProviderError as e:
+                return {"ok": False, "msg": f"{prov}/{model}: {str(e)[:300]}"}
+        if model != "vision":
+            return {"ok": False, "msg": model}
+        note = "the picked model cannot see images, so the vision tier answered"
     try:
-        text, model = providers.chat([{"role": "system", "content": SYSTEM}] + msgs, tier=tier)
+        text, model = providers.chat(msgs, tier=tier)
     except ProviderError as e:
         return {"ok": False, "msg": f"{e} - add a key in the panel, or start Ollama"}
-    return {"ok": True, "reply": text or "(empty reply)", "model": model, "tier": tier}
+    return {"ok": True, "reply": text or "(empty reply)", "model": model,
+            "tier": f"{tier} tier" + (f"; {note}" if note else "")}
 
 
 # ------------------------------------------------------------------ keys

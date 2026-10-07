@@ -230,6 +230,9 @@ select{appearance:auto}
 .seg button:last-child{border-right:0}
 .seg button[aria-checked="true"]{background:var(--fg);color:#000;font-weight:700}
 #tierhint{margin:12px 0 16px}
+.ws-pick{margin-top:16px}
+.ws-pick .label{margin-bottom:6px}
+#cloudhint{margin:8px 0 0}
 .wslog{display:grid;gap:14px;max-height:56vh;overflow:auto;margin-bottom:16px}
 .wslog:empty{display:none}
 .wmsg{border-left:2px solid var(--line2);padding:2px 0 2px 14px;min-width:0}
