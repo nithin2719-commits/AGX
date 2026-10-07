@@ -4,17 +4,39 @@
 Shows every project: what each agent is doing, the plan you gave them, the tasks,
 and the full text of their planning meetings and work logs.
 """
-import http.server, socketserver, json, os, sys, subprocess, re, html
+import http.server, socketserver, json, os, sys, subprocess, re, html, hmac, secrets
 from urllib.parse import parse_qs, urlparse
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 LOGDIR = os.path.join(BASE, "logs")
-PORT = 8765
+PORT = int(os.environ.get("AGX_PORT", "8765"))
 AGENTS = ("claude", "agy")
 # GitHub accounts that belong to the user, so the project scanner can tell
 # their own repos apart from cloned third-party tools.
 MINE = {"nithin2719-commits", "nithin2729-commits", "xcaptain09", "mano-dev-01"}
 SETTINGS = os.path.join(BASE, "settings.json")
+TOKEN_FILE = os.path.join(BASE, "state", "token")
+LOCAL_HOSTS = {"localhost", "127.0.0.1"}
+MAX_BODY = 1_000_000
+
+
+def load_token():
+    """The secret every POST must carry in X-AGX-Token. Created once, mode 600."""
+    os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
+    try:
+        fd = os.open(TOKEN_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(secrets.token_urlsafe(32) + "\n")
+    except FileExistsError:
+        pass
+    os.chmod(TOKEN_FILE, 0o600)
+    tok = open(TOKEN_FILE).read().strip()
+    if len(tok) < 32:
+        raise SystemExit(f"{TOKEN_FILE} is too short; delete it to make a new one")
+    return tok
+
+
+TOKEN = load_token()
 
 _MODEL_CACHE = {"t": 0, "v": None}
 
@@ -312,12 +334,17 @@ def collect():
 
 
 def allowed(path):
-    """Only serve files that belong to the agent team."""
-    path = os.path.abspath(path)
-    if path.startswith(os.path.abspath(LOGDIR)):
-        return True
-    return any(path.startswith(os.path.join(os.path.abspath(p), ".agent-team"))
-               for p, _ in all_projects())
+    """Only serve files that belong to the agent team: the logs folder and each
+    project's .agent-team folder. Symlinks and ".." are resolved first, so a
+    link inside an allowed folder cannot point anywhere else."""
+    if not path:
+        return False
+    real = os.path.realpath(path)
+    if not os.path.isfile(real):
+        return False
+    roots = [os.path.realpath(LOGDIR)] + [
+        os.path.realpath(os.path.join(p, ".agent-team")) for p, _ in all_projects()]
+    return any(os.path.commonpath([real, r]) == r for r in roots)
 
 
 CSS = """
@@ -609,6 +636,8 @@ label{display:block;font:600 11px/1.4 var(--mo);color:var(--faint);margin-bottom
 """
 
 JS = r"""
+const HDR={'Content-Type':'application/json',
+ 'X-AGX-Token':document.querySelector('meta[name=agx-token]').content};
 const I={
  play:'<svg viewBox="0 0 16 16"><path d="M4 2l9 6-9 6z"/></svg>',
  chat:'<svg viewBox="0 0 16 16"><path d="M2 2h12v9H8l-4 3v-3H2z"/></svg>',
@@ -630,7 +659,7 @@ async function act(a,p,x){
  if(BUSY){toast('one action at a time',true);return}
  BUSY=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);
  try{const r=await fetch('/action',{method:'POST',
-   headers:{'Content-Type':'application/json'},
+   headers:HDR,
    body:JSON.stringify(Object.assign({action:a,project:p},x||{}))});
   const j=await r.json();toast(j.msg||(j.ok?'done':'failed'),!j.ok);
  }catch(e){toast('request failed: '+e,true)}
@@ -651,7 +680,7 @@ async function ask(n,agent){
  CHAT[n].push({who:agent,text:'thinking…'});
  renderChat(n);
  try{
-  const r=await fetch('/action',{method:'POST',headers:{'Content-Type':'application/json'},
+  const r=await fetch('/action',{method:'POST',headers:HDR,
     body:JSON.stringify({action:'chat',project:n,agent:agent,text:q})});
   const j=await r.json();
   CHAT[n].pop();
@@ -665,7 +694,7 @@ async function explain(n){
  CHAT[n].push({who:'claude',text:'reading the logs…'});
  renderChat(n);
  try{
-  const r=await fetch('/action',{method:'POST',headers:{'Content-Type':'application/json'},
+  const r=await fetch('/action',{method:'POST',headers:HDR,
     body:JSON.stringify({action:'explain',project:n})});
   const j=await r.json();CHAT[n].pop();
   CHAT[n].push({who:'claude',text:j.reply||j.msg||'no reply'});
@@ -735,7 +764,7 @@ async function scanRepos(){
  box.hidden=false;
  box.innerHTML='<div class="hint">scanning ~/Projects and ~ …</div>';
  try{
-  const r=await fetch('/action',{method:'POST',headers:{'Content-Type':'application/json'},
+  const r=await fetch('/action',{method:'POST',headers:HDR,
     body:JSON.stringify({action:'scan'})});
   const j=await r.json();
   const f=j.found||[];
@@ -936,7 +965,7 @@ function setModel(a,v){act('set_model',null,{agent:a,model:v})}
 let noteT;
 function noteChanged(){clearTimeout(noteT);
  noteT=setTimeout(()=>{const n=document.getElementById('note');
-  if(n)fetch('/action',{method:'POST',headers:{'Content-Type':'application/json'},
+  if(n)fetch('/action',{method:'POST',headers:HDR,
    body:JSON.stringify({action:'set_note',text:n.value})})},900)}
 function commitNow(n){
  const m=prompt('Commit message (leave blank and one will be written from the diff):','');
@@ -977,6 +1006,7 @@ tick();setInterval(tick,4000);
 """
 
 PAGE = ("<!doctype html><html lang=en><meta charset=utf-8>"
+        "<meta name=agx-token content='__AGX_TOKEN__'>"
         "<meta name=viewport content='width=device-width,initial-scale=1'>"
         "<title>AGX</title>"
         f"<style>{CSS}</style>"
@@ -1330,9 +1360,33 @@ def do_action(body):
     return {"ok": False, "msg": f"unknown action: {act}"}
 
 
+def host_name(value):
+    """'localhost:8765' -> 'localhost'; '[::1]:8765' -> '::1'."""
+    value = (value or "").strip().lower()
+    if value.startswith("["):
+        return value[1:value.find("]")] if "]" in value else ""
+    return value.rsplit(":", 1)[0] if value.count(":") == 1 else value
+
+
 class H(http.server.BaseHTTPRequestHandler):
-    def _send(self, body, ctype):
-        self.send_response(200)
+    def _deny(self, code, msg):
+        body = json.dumps({"ok": False, "msg": msg}).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _host_ok(self):
+        """Reject any Host but this machine's own names. A page on another site
+        that rebinds its DNS name to 127.0.0.1 still sends its own name here."""
+        if host_name(self.headers.get("Host")) not in LOCAL_HOSTS:
+            self._deny(403, "host not allowed")
+            return False
+        return True
+
+    def _send(self, body, ctype, code=200):
+        self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         # Never cache: the UI changes often and a stale page looks like
@@ -1344,6 +1398,8 @@ class H(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        if not self._host_ok():
+            return
         u = urlparse(self.path)
         if u.path == "/api":
             self._send(json.dumps({"projects": collect(), "models": discover_models(),
@@ -1397,18 +1453,45 @@ class H(http.server.BaseHTTPRequestHandler):
             self.end_headers()
         elif u.path == "/file":
             p = (parse_qs(u.query).get("p") or [""])[0]
-            txt = read(p) if allowed(p) else "not allowed"
-            self._send(txt.encode(), "text/plain; charset=utf-8")
+            if allowed(p):
+                self._send(read(os.path.realpath(p)).encode(), "text/plain; charset=utf-8")
+            else:
+                self._send(b"not allowed", "text/plain; charset=utf-8", 403)
         else:
-            self._send(PAGE.encode(), "text/html; charset=utf-8")
+            self._send(PAGE.replace("__AGX_TOKEN__", TOKEN).encode(),
+                       "text/html; charset=utf-8")
 
     def do_POST(self):
+        if not self._host_ok():
+            return
         if urlparse(self.path).path != "/action":
-            self._send(b"not found", "text/plain")
+            self._send(b"not found", "text/plain", 404)
+            return
+        # A custom header cannot be sent cross-site without a CORS preflight,
+        # which this server never answers, so a page on another site cannot
+        # forge this request even before the token is compared.
+        if not hmac.compare_digest(self.headers.get("X-AGX-Token", "").encode(),
+                                   TOKEN.encode()):
+            self._deny(403, "missing or wrong X-AGX-Token")
+            return
+        origin = self.headers.get("Origin")
+        if origin and host_name(urlparse(origin).netloc) not in LOCAL_HOSTS:
+            self._deny(403, "origin not allowed")
+            return
+        if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
+            self._deny(415, "send application/json")
             return
         try:
             n = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            n = -1
+        if not 0 <= n <= MAX_BODY:
+            self._deny(413, "body too large")
+            return
+        try:
             body = json.loads(self.rfile.read(n) or b"{}")
+            if not isinstance(body, dict):
+                raise ValueError("body must be a JSON object")
             res = do_action(body)
         except Exception as e:
             res = {"ok": False, "msg": f"error: {e}"}
