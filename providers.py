@@ -118,6 +118,25 @@ PROVIDERS = {
             "vision": [r"^google/gemma-4-31b-it:free$", r"nemotron-3-nano-omni.*:free$"],
         },
     },
+    "github": {
+        "label": "GitHub Models",
+        "url": "https://models.github.ai/inference",
+        "env": "GITHUB_TOKEN", "prefix": "",
+        "signup": "https://github.com/settings/personal-access-tokens/new",
+        "blurb": "free GPT-4.1, DeepSeek, Llama and more with a GitHub token (models:read)",
+        # GitHub's catalog lives on a different path, so list the stable free
+        # ids here. A renamed one just rests and routing falls back.
+        "static": ["openai/gpt-4.1", "openai/gpt-4o", "openai/gpt-4.1-mini",
+                   "openai/gpt-4o-mini", "deepseek/DeepSeek-R1-0528", "deepseek/DeepSeek-V3-0324",
+                   "meta/Llama-3.3-70B-Instruct", "meta/Llama-4-Maverick-17B-128E-Instruct-FP8",
+                   "mistral-ai/Mistral-Large-2411", "microsoft/Phi-4"],
+        "tiers": {
+            "big": [r"gpt-4\.1$", r"deepseek-r1", r"llama-4-maverick", r"deepseek-v3",
+                    r"gpt-4o$", r"llama-3\.3-70b", r"mistral-large"],
+            "small": [r"gpt-4\.1-mini$", r"gpt-4o-mini$", r"phi-4$"],
+            "vision": [r"gpt-4o$", r"gpt-4\.1$", r"llama-4-maverick"],
+        },
+    },
     "gemini": {
         "label": "Google Gemini",
         "url": "https://generativelanguage.googleapis.com/v1beta/openai",
@@ -204,10 +223,58 @@ PROVIDERS = {
 # small work to the fastest, and images stay on this machine when Ollama can
 # see them.
 ORDER = {
-    "big": ["nvidia", "openrouter", "gemini", "zai", "mistral", "groq", "cerebras", "ollama"],
-    "small": ["groq", "cerebras", "nvidia", "gemini", "openrouter", "mistral", "zai", "ollama"],
-    "vision": ["ollama", "nvidia", "gemini", "zai", "openrouter", "groq", "mistral"],
+    "big": ["nvidia", "openrouter", "github", "gemini", "zai", "mistral", "groq", "cerebras", "ollama"],
+    "small": ["groq", "cerebras", "nvidia", "gemini", "github", "openrouter", "mistral", "zai", "ollama"],
+    "vision": ["ollama", "nvidia", "gemini", "github", "zai", "openrouter", "groq", "mistral"],
 }
+
+# What are you using the model for? Each kind of work prefers different models
+# than the plain small/big/vision tiers. A task lists model-name patterns in
+# order of fitness, matched across every ready provider; the first live match
+# wins, and the tier is the fallback when none match. `order` overrides which
+# providers are tried first (cyber work goes local first, so nothing about a
+# target leaves the machine).
+RECOMMEND = {
+    "code": {
+        "label": "Code", "tier": "big",
+        "blurb": "Writing, refactoring and fixing code",
+        "prefer": [r"qwen3?-?coder(?!.*fast)", r"north-mini-code", r"devstral",
+                   r"glm-5(?!.*flash)", r"gpt-4\.1$", r"laguna-s", r"kimi-k\d",
+                   r"nemotron-3-ultra", r"llama-4-maverick", r"gpt-oss", r"agx-coder(?!-fast)"],
+    },
+    "reason": {
+        "label": "Reasoning", "tier": "big",
+        "blurb": "Hard problems, maths and multi-step planning",
+        "prefer": [r"deepseek-r\d", r"nemotron-3-ultra", r"glm-5(?!.*flash)",
+                   r"gpt-4\.1$", r"kimi-k\d", r"deepseek-v\d(?!.*flash)", r"qwen3:3\d",
+                   r"nemotron-3-super"],
+    },
+    "vision": {
+        "label": "Images", "tier": "vision",
+        "blurb": "Reading screenshots, diagrams and photos",
+        "prefer": [],                       # the vision tier already ranks these
+    },
+    "cyber": {
+        "label": "Cyber / CTF", "tier": "big",
+        "order": ["ollama", "nvidia", "openrouter", "github", "gemini", "zai", "groq", "cerebras", "mistral"],
+        "blurb": "Security analysis, reverse engineering and CTF, kept local first "
+                 "so nothing about a target leaves this machine",
+        "prefer": [r"agx-coder(?!-fast)", r"deepseek-r\d", r"qwen3-coder",
+                   r"glm-5(?!.*flash)", r"nemotron-3-ultra", r"kimi-k\d", r"deepseek-v\d(?!.*flash)"],
+    },
+    "quick": {
+        "label": "Quick", "tier": "small",
+        "blurb": "Short answers, classifying and quick edits",
+        "prefer": [],                       # the small tier is already the fast pick
+    },
+    "write": {
+        "label": "Writing", "tier": "big",
+        "blurb": "Docs, summaries and plain-language explanations",
+        "prefer": [r"gpt-4\.1$", r"glm-5(?!.*flash)", r"kimi-k\d", r"nemotron-3-ultra",
+                   r"gpt-4o$", r"gpt-oss", r"llama3"],
+    },
+}
+
 
 # The opencode worker's model, best first, matched against `opencode models`.
 # Keyed providers lead because they are stronger; opencode's own free models
@@ -528,6 +595,43 @@ def pick(tier, exclude=()):
         if m:
             return prov, m
     return None, None
+
+
+def _where(prov):
+    return "on this machine" if PROVIDERS[prov].get("local") else f"via {PROVIDERS[prov]['label']}"
+
+
+def recommend(task):
+    """The model to use for a kind of work, as (provider, model, reason).
+
+    Matches the task's preferred model names across every ready provider in
+    order, skipping ones that are resting, and falls back to the task's tier
+    when nothing matches. reason is a short sentence for the person."""
+    spec = RECOMMEND.get(task)
+    if not spec:
+        return None, None, ""
+    tier = spec["tier"]
+    order = spec.get("order") or ORDER[tier]
+    for prov in order:
+        if prov not in PROVIDERS or not ready(prov) or cooling(prov):
+            continue
+        try:
+            avail = models(prov)
+        except ProviderError:
+            continue
+        caps = ollama_models() if PROVIDERS[prov].get("local") else None
+        need = "vision" if tier == "vision" else "completion"
+        for pat in spec["prefer"]:
+            hits = [m for m in avail if re.search(pat, m, re.I)
+                    and not resting(prov, m)
+                    and (caps is None or need in caps.get(m, []))]
+            if hits:
+                model = sorted(hits, key=natkey, reverse=True)[0]
+                return prov, model, f"{spec['blurb']}. Runs {_where(prov)}."
+    prov, model = pick(tier)
+    if not prov:
+        return None, None, f"No model is free for {spec['label'].lower()} right now."
+    return prov, model, f"{spec['blurb']}. Runs {_where(prov)}."
 
 
 # ------------------------------------------------------------------ calls

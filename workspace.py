@@ -15,7 +15,7 @@ so it is never offered.
 import base64, binascii, json, os, re, time, urllib.error, urllib.request
 
 import providers
-from providers import PROVIDERS, TIERS, ProviderError
+from providers import PROVIDERS, RECOMMEND, TIERS, ProviderError
 
 CONFIG = providers.CONFIG
 KEY_RE = re.compile(r"^[A-Za-z0-9._~+/=:-]{8,400}$")
@@ -66,7 +66,13 @@ def state():
     for t in TIERS:
         p, m = providers.pick(t)
         tiers[t] = {"provider": p or "", "model": m or ""}
-    return {"ok": True, "providers": rows, "tiers": tiers, "models": choices()}
+    tasks = []
+    for task, spec in RECOMMEND.items():
+        p, m, why = providers.recommend(task)
+        tasks.append({"id": task, "label": spec["label"], "provider": p or "",
+                      "model": m or "", "pick": f"{p}|{m}" if p else "", "why": why})
+    return {"ok": True, "providers": rows, "tiers": tiers,
+            "tasks": tasks, "models": choices()}
 
 
 def _matches(prov, tier, avail, caps=None):
@@ -171,26 +177,43 @@ def chat(body):
         return {"ok": False, "msg": str(e)}
     msgs = [{"role": "system", "content": SYSTEM}] + msgs
     note = ""
-    if body.get("model"):
+    task = str(body.get("task") or "")
+    # An exact model chosen from the list is used on its own. Otherwise a task
+    # (Code, Cyber, ...) resolves to its recommended model live, so it stays
+    # right as models rest, and falls back to the tier chain if that model is
+    # down. An image always overrides both with a vision model.
+    if not image and str(body.get("model") or ""):
         prov, model = _picked(str(body["model"]), image)
         if prov:
             try:
                 return {"ok": True, "reply": providers.call(prov, model, msgs) or "(empty reply)",
-                        "model": f"{prov}/{model}", "tier": "picked by name"}
+                        "model": f"{prov}/{model}", "tier": "your pick"}
             except providers.RateLimited as e:
                 providers.cool(prov, min(max(e.retry_after, 30), 3600))
-                return {"ok": False, "msg": f"{prov}/{model} is rate limited - try Auto"}
+                return {"ok": False, "msg": f"{prov}/{model} is busy - try again or pick Any"}
             except ProviderError as e:
                 return {"ok": False, "msg": f"{prov}/{model}: {str(e)[:300]}"}
         if model != "vision":
             return {"ok": False, "msg": model}
-        note = "the picked model cannot see images, so the vision tier answered"
+        note = "the picked model cannot see images, so a vision model answered"
+    elif not image and task in RECOMMEND:
+        prov, model, _ = providers.recommend(task)
+        if prov:
+            try:
+                return {"ok": True, "reply": providers.call(prov, model, msgs) or "(empty reply)",
+                        "model": f"{prov}/{model}", "tier": f"for {RECOMMEND[task]['label']}"}
+            except providers.RateLimited as e:
+                providers.cool(prov, min(max(e.retry_after, 30), 3600))
+            except ProviderError:
+                pass                        # the model rested itself; the tier takes over
+        tier = RECOMMEND[task]["tier"]
+        note = f"picked for {RECOMMEND[task]['label']}"
     try:
         text, model = providers.chat(msgs, tier=tier)
     except ProviderError as e:
         return {"ok": False, "msg": f"{e} - add a key in the panel, or start Ollama"}
     return {"ok": True, "reply": text or "(empty reply)", "model": model,
-            "tier": f"{tier} tier" + (f"; {note}" if note else "")}
+            "tier": (note or f"{tier} tier")}
 
 
 # ------------------------------------------------------------------ keys
