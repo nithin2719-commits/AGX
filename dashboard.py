@@ -888,10 +888,11 @@ class H(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._gate("POST"):
             return
-        if urlparse(self.path).path == "/login":
+        path = urlparse(self.path).path
+        if path == "/login":
             self._login()
             return
-        if urlparse(self.path).path != "/action":
+        if path not in ("/action", "/stream"):
             self._send(b"not found", "text/plain", 404)
             return
         # A custom header cannot be sent cross-site without a CORS preflight,
@@ -918,10 +919,39 @@ class H(http.server.BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(n) or b"{}")
             if not isinstance(body, dict):
                 raise ValueError("body must be a JSON object")
+        except Exception as e:
+            self._deny(400, f"bad request: {e}")
+            return
+        if path == "/stream":
+            self._stream_chat(body)
+            return
+        try:
             res = do_action(body)
         except Exception as e:
             res = {"ok": False, "msg": f"error: {e}"}
         self._send(json.dumps(res).encode(), "application/json")
+
+    def _stream_chat(self, body):
+        """Stream a Workspace reply as newline-delimited JSON, one piece per
+        line, flushed as it arrives. HTTP/1.0 closes the connection at the end,
+        which the browser reads as the end of the stream."""
+        import workspace
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        try:
+            for piece in workspace.chat_stream(body):
+                self.wfile.write((json.dumps(piece) + "\n").encode())
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            pass                              # the browser went away; stop quietly
+        except Exception as e:
+            try:
+                self.wfile.write((json.dumps({"error": f"stream failed: {e}"}) + "\n").encode())
+            except OSError:
+                pass
 
     def log_message(self, *a):
         pass

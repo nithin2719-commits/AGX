@@ -462,18 +462,20 @@ def _http(url, payload=None, key="", timeout=180):
         raise ProviderError(f"unreachable: {e}")
 
 
-def _stream(url, payload, key, idle):
-    """POST a chat request with stream=True and return the answer text.
+def _stream_iter(url, payload, key, idle):
+    """POST a chat request with stream=True and yield answer text as it arrives.
 
     The timeout applies to each wait for data, not to the whole reply: a model
     that never starts fails after `idle` seconds, while a long answer that keeps
-    arriving is never cut off. Reasoning deltas are dropped."""
-    parts, started, t0 = [], False, time.time()
+    arriving is never cut off. Reasoning deltas are dropped. <think> blocks are
+    stripped only when the reply is collected (not mid-stream)."""
+    started, t0 = False, time.time()
     try:
         with urllib.request.urlopen(_request(url, dict(payload, stream=True), key, True),
                                     timeout=idle) as r:
             if "event-stream" not in r.headers.get("Content-Type", ""):
-                return _text(json.loads(r.read().decode())["choices"][0]["message"]["content"])
+                yield _text(json.loads(r.read().decode())["choices"][0]["message"]["content"])
+                return
             for raw in r:
                 # OpenRouter sends ": PROCESSING" keep-alives while a model is
                 # queued; they keep the socket busy but are not an answer.
@@ -495,9 +497,11 @@ def _stream(url, payload, key, idle):
                     raise ProviderError(f"HTTP {code} in stream: {json.dumps(err)[:200]}")
                 for ch in chunk.get("choices") or []:
                     delta = ch.get("delta") or {}
-                    started = started or any(delta.get(k) for k in ("content", "reasoning",
-                                                                   "reasoning_content"))
-                    parts.append(delta.get("content") or "")
+                    piece = delta.get("content") or ""
+                    started = started or bool(piece) or any(
+                        delta.get(k) for k in ("reasoning", "reasoning_content"))
+                    if piece:
+                        yield piece
     except urllib.error.HTTPError as e:
         raise _http_error(e)
     except ProviderError:
@@ -506,7 +510,11 @@ def _stream(url, payload, key, idle):
         raise ProviderError(f"unexpected reply: {e}")
     except Exception as e:  # timeouts, DNS, refused connections
         raise ProviderError(f"unreachable: {e}")
-    return _text("".join(parts))
+
+
+def _stream(url, payload, key, idle):
+    """Collect a streamed reply into one string (think-blocks stripped)."""
+    return _text("".join(_stream_iter(url, payload, key, idle)))
 
 
 # ------------------------------------------------------------------ ollama
@@ -738,6 +746,109 @@ def call(prov, model, messages, temperature=0.2, timeout=None):
         elif re.search(r"HTTP 429 in stream", s):
             rest_model(prov, model, BUSY_REST)
         raise
+
+
+def _ollama_stream_iter(model, messages, temperature, timeout):
+    """Yield text as a local Ollama model generates it (native streaming API)."""
+    msgs = []
+    for m in messages:
+        c = m["content"]
+        if isinstance(c, list):
+            mm = {"role": m["role"],
+                  "content": "".join(p.get("text", "") for p in c if p.get("type") == "text")}
+            imgs = [p["image_url"]["url"].split(",", 1)[-1]
+                    for p in c if p.get("type") == "image_url"]
+            if imgs:
+                mm["images"] = imgs
+            msgs.append(mm)
+        else:
+            msgs.append({"role": m["role"], "content": c})
+    body = {"model": model, "messages": msgs, "stream": True,
+            "options": {"temperature": temperature, "num_ctx": 16384}}
+    try:
+        with urllib.request.urlopen(_request(OLLAMA + "/api/chat", body), timeout=timeout) as r:
+            for raw in r:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    d = json.loads(raw)
+                except ValueError:
+                    continue
+                piece = (d.get("message") or {}).get("content") or ""
+                if piece:
+                    yield piece
+                if d.get("done"):
+                    break
+    except urllib.error.HTTPError as e:
+        raise _http_error(e)
+    except Exception as e:
+        raise ProviderError(f"unreachable: {e}")
+
+
+def call_stream(prov, model, messages, temperature=0.2, timeout=None):
+    """Yield a reply token by token, resting the model on failure like call()."""
+    try:
+        if PROVIDERS[prov].get("local"):
+            yield from _ollama_stream_iter(model, messages, temperature, timeout or 900)
+        else:
+            yield from _stream_iter(PROVIDERS[prov]["url"] + "/chat/completions",
+                                    {"model": model, "messages": messages,
+                                     "temperature": temperature}, key_for(prov), timeout or 90)
+    except RateLimited as e:
+        if "Provider returned error" in str(e) or "HTTP 429 in stream" in str(e):
+            rest_model(prov, model, BUSY_REST)
+            raise ProviderError(f"model busy upstream: {str(e)[:160]}")
+        raise
+    except ProviderError as e:
+        s = str(e)
+        if re.search(r"HTTP (404|410)\b", s) or (re.search(r"HTTP 403\b", s) and model in s):
+            rest_model(prov, model, DEAD_REST)
+        elif re.search(r"timed out|HTTP 5\d\d\b", s):
+            rest_model(prov, model, STUCK_REST)
+        elif re.search(r"HTTP 429 in stream", s):
+            rest_model(prov, model, BUSY_REST)
+        raise
+
+
+def chat_stream(messages, tier="small", prefer=None, temperature=0.2):
+    """Stream a reply from the best free model. Yields ('model', 'prov/model')
+    once the answer starts, then ('delta', text) pieces, then ('done', '') or
+    ('error', message). A model that fails before its first token falls through
+    to the next; once text has started, an error ends the stream."""
+    seq, tried, errors = [], [], []
+    if prefer and prefer[0] in PROVIDERS and ready(prefer[0]):
+        seq.append(tuple(prefer))
+    for _ in range(8):
+        if seq:
+            prov, model = seq.pop(0)
+        else:
+            prov, model = pick(tier, exclude=tried)
+            if not prov:
+                break
+            tried.append(prov)
+        started = False
+        try:
+            for piece in call_stream(prov, model, messages, temperature):
+                if not started:
+                    started = True
+                    yield "model", f"{prov}/{model}"
+                yield "delta", piece
+            if started:
+                yield "done", ""
+                return
+            errors.append(f"{prov}/{model}: empty")
+        except RateLimited as e:
+            cool(prov, min(max(e.retry_after, 30), 3600))
+            errors.append(f"{prov}: rate limited")
+        except ProviderError as e:
+            if started:                       # already streaming: stop here
+                yield "error", f"the reply was cut off: {str(e)[:120]}"
+                return
+            errors.append(f"{prov}/{model}: {str(e)[:100]}")
+            if re.search(r"HTTP 40[123]\b", str(e)):
+                cool(prov, 3600)
+    yield "error", "no model could answer (" + ("; ".join(errors[-3:]) or "none free") + ")"
 
 
 def chat(messages, tier="small", temperature=0.2):

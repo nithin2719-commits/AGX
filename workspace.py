@@ -160,6 +160,56 @@ def _picked(value, image):
     return prov, model
 
 
+def _resolve(body):
+    """Work out (messages, tier, prefer) for a chat, or raise ValueError.
+
+    prefer is (provider, model) to try first, or None to let the tier choose.
+    Shared by the streaming and non-streaming paths."""
+    tier = body.get("tier", "big")
+    if tier not in TIERS:
+        raise ValueError("unknown size")
+    msgs = _clean_messages(body.get("messages"))
+    image = body.get("image")
+    if image:
+        tier = "vision"
+        msgs[-1]["content"] = [{"type": "text", "text": msgs[-1]["content"].strip() or SEE_DEFAULT},
+                               _image_part(image)]
+    msgs = [{"role": "system", "content": SYSTEM}] + msgs
+    task = str(body.get("task") or "")
+    prefer = None
+    if not image and str(body.get("model") or ""):
+        prov, model = _picked(str(body["model"]), image)
+        if prov:
+            prefer = (prov, model)
+        elif model != "vision":
+            raise ValueError(model)         # e.g. "unknown model"
+    elif not image and task in RECOMMEND:
+        prov, model, _ = providers.recommend(task)
+        if prov:
+            prefer = (prov, model)
+        tier = RECOMMEND[task]["tier"]
+    return msgs, tier, prefer
+
+
+def chat_stream(body):
+    """Yield dicts for a streamed reply: {model}, then {delta}, then {done} or
+    {error}. The browser shows the text as it arrives."""
+    try:
+        msgs, tier, prefer = _resolve(body)
+    except ValueError as e:
+        yield {"error": str(e)}
+        return
+    for kind, val in providers.chat_stream(msgs, tier=tier, prefer=prefer):
+        if kind == "model":
+            yield {"model": val}
+        elif kind == "delta":
+            yield {"delta": val}
+        elif kind == "done":
+            yield {"done": True}
+        elif kind == "error":
+            yield {"error": val}
+
+
 def chat(body):
     tier = body.get("tier", "big")
     if tier not in TIERS:

@@ -452,7 +452,7 @@ async function addProject(path) {
 // Chat with the free models (providers.py picks the model for each size),
 // ask about an image, manage API keys, and make images where a provider has
 // proved it can.
-const WS = {task: '', tier: 'big', model: '', log: [], image: null, busy: false, state: null, rows: new Map()};
+const WS = {task: '', tier: 'big', model: '', log: [], image: null, busy: false, stick: true, state: null, rows: new Map()};
 const TIER_NOTE = {small: 'fast and cheap', big: 'strongest reasoning', vision: 'understands images'};
 // "nvidia/nvidia/nemotron-…" reads badly; show the model, then where it runs.
 const via = (prov, model) => `${model} via ${prov}`;
@@ -497,26 +497,29 @@ function renderTasks() {
 }
 function renderWhy() {
   const s = WS.state, seg = $('#sizeseg'), line = $('#taskwhy');
+  let mode = 'Auto';
   if (!s) { setText(line, 'Checking which models are available…'); return; }
   if (WS.model) {
     seg.hidden = true;
     const m = (s.models || []).find(x => x.provider + '|' + x.model === WS.model);
     setHTML(line, `Using <b>${esc(via(...WS.model.split('|')))}</b>${m && m.resting ? ', which is resting — it may fall back' : ''}.`);
-    return;
-  }
-  if (WS.task) {
+    mode = via(...WS.model.split('|'));
+  } else if (WS.task) {
     seg.hidden = true;
     const t = (s.tasks || []).find(x => x.id === WS.task);
     setHTML(line, t && t.provider
       ? `Using <b>${esc(via(t.provider, t.model))}</b>. ${esc(t.why)}`
       : (t ? esc(t.why) : ''));
-    return;
+    mode = (t ? t.label + ' · ' : '') + (t && t.provider ? via(t.provider, t.model) : 'no model free');
+  } else {
+    seg.hidden = false;
+    const v = s.tiers[WS.tier] || {};
+    setHTML(line, v.provider
+      ? `Auto picks the best free model for the size. <b>${esc(WS.tier[0].toUpperCase() + WS.tier.slice(1))}</b> (${TIER_NOTE[WS.tier]}) is <b>${esc(via(v.provider, v.model))}</b> now.`
+      : `Nothing can answer at this size. Add a key or start Ollama.`);
+    mode = 'Auto · ' + (v.provider ? via(v.provider, v.model) : 'nothing free');
   }
-  seg.hidden = false;
-  const v = s.tiers[WS.tier] || {};
-  setHTML(line, v.provider
-    ? `Auto picks the best free model for the size. <b>${esc(WS.tier[0].toUpperCase() + WS.tier.slice(1))}</b> (${TIER_NOTE[WS.tier]}) is <b>${esc(via(v.provider, v.model))}</b> now.`
-    : `Nothing can answer at this size. Add a key or start Ollama.`);
+  setText($('#chatmode'), mode);
 }
 // Every model a ready provider offers, grouped by provider, so a specific one
 // (say NVIDIA's newest GLM) can be picked by name.
@@ -600,19 +603,62 @@ function renderImageGen() {
     <textarea id="imgprompt" rows="2"></textarea>
     <div class="row"><button class="primary" data-do="imgMake">Make image</button></div></div>`;
 }
+// A small, safe Markdown renderer: fenced code, inline code, bold, headings,
+// bullet and numbered lists, paragraphs. Everything is escaped first.
+function mdLite(src) {
+  const blocks = String(src).split(/```/);
+  let out = '';
+  blocks.forEach((chunk, i) => {
+    if (i % 2) {                             // inside a fenced code block
+      const nl = chunk.indexOf('\n');
+      const code = nl >= 0 ? chunk.slice(nl + 1) : chunk;
+      out += `<pre><code>${esc(code.replace(/\n$/, ''))}</code></pre>`;
+      return;
+    }
+    const inline = s => esc(s)
+      .replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`)
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    chunk.split(/\n{2,}/).forEach(para => {
+      if (!para.trim()) return;
+      const lines = para.split('\n');
+      if (lines.every(l => /^\s*[-*]\s+/.test(l))) {
+        out += '<ul>' + lines.map(l => `<li>${inline(l.replace(/^\s*[-*]\s+/, ''))}</li>`).join('') + '</ul>';
+      } else if (lines.every(l => /^\s*\d+\.\s+/.test(l))) {
+        out += '<ol>' + lines.map(l => `<li>${inline(l.replace(/^\s*\d+\.\s+/, ''))}</li>`).join('') + '</ol>';
+      } else if (/^#{1,6}\s/.test(lines[0]) && lines.length === 1) {
+        out += `<p><b>${inline(lines[0].replace(/^#{1,6}\s/, ''))}</b></p>`;
+      } else {
+        out += `<p>${lines.map(inline).join('<br>')}</p>`;
+      }
+    });
+  });
+  return out || '<p></p>';
+}
+function msgBody(m) {
+  if (m.role === 'user' || m.err) return `<div class="body">${esc(m.content)}</div>`;
+  return `<div class="body">${mdLite(m.content)}${m.streaming ? '<span class="caret"></span>' : ''}</div>`;
+}
 function renderWsLog() {
   const el = $('#wslog');
+  $('#greet').classList.toggle('gone', WS.log.length > 0);
   el.innerHTML = WS.log.map(m => {
     const ext = m.image ? (m.image.match(/^data:image\/(\w+)/) || [, 'png'])[1].replace('jpeg', 'jpg') : '';
-    return `<div class="wmsg${m.role === 'user' ? ' you' : ''}${m.err ? ' err' : ''}">
-      <div class="by">${m.err ? 'Error' : m.role === 'user' ? 'You' : 'Model'}</div>
-      ${m.content ? `<div class="body">${esc(m.content)}</div>` : ''}
+    return `<div class="wmsg ${m.role === 'user' ? 'you' : 'ai'}${m.err ? ' err' : ''}">
+      <div class="by">${m.err ? 'Error' : m.role === 'user' ? 'You' : 'AGX'}</div>
+      ${m.content || m.streaming ? msgBody(m) : ''}
       ${m.image ? `<img src="${esc(m.image)}" alt="${m.role === 'user' ? 'Attached image' : 'Made image'}">` : ''}
-      ${m.model ? `<div class="meta">Answered by <code>${esc(viaRef(m.model))}</code>${m.tier ? ', ' + esc(m.tier) : ''}</div>` : ''}
+      ${m.model ? `<div class="meta">${esc(viaRef(m.model))}${m.tier ? ' · ' + esc(m.tier) : ''}</div>` : ''}
       ${m.kind === 'gen' && m.image && m.role !== 'user' ? `<a class="btn" style="margin-top:8px" href="${esc(m.image)}" download="agx-image.${ext}">Save image</a>` : ''}
     </div>`;
   }).join('');
-  el.lastElementChild && el.lastElementChild.scrollIntoView({block: 'nearest'});
+  renderTok();
+  if (WS.stick) el.lastElementChild && el.lastElementChild.scrollIntoView({block: 'end'});
+}
+// A rough token estimate (~4 chars/token) of what the next send would carry.
+function renderTok() {
+  const chars = WS.log.filter(m => m.content && !m.err).slice(-15)
+    .reduce((n, m) => n + m.content.length, 0) + ($('#wsq') ? $('#wsq').value.length : 0);
+  setText($('#tokline'), chars ? `~${Math.ceil(chars / 4)} tokens in context` : '');
 }
 async function wsSend() {
   if (WS.busy) { toast('Wait for the reply first.', true); return; }
@@ -620,21 +666,39 @@ async function wsSend() {
   if (!text && !image) { ta.focus(); return; }
   const history = WS.log.filter(m => !m.err && !m.pending && m.kind === 'text' && m.content)
     .slice(-14).map(m => ({role: m.role, content: m.content}));
-  const pending = {role: 'assistant', content: image ? 'Looking at the image…' : 'Thinking…', pending: true};
+  const pending = {role: 'assistant', content: '', kind: 'text', streaming: true};
   WS.log.push({role: 'user', content: text, image, kind: 'text'}, pending);
   ta.value = '';
   grow(ta);
   unattach();
+  WS.stick = true;
   renderWsLog();
   WS.busy = true;
   syncSend();
   try {
-    const j = await post({action: 'ws_chat', tier: WS.tier, task: WS.task, model: WS.model, image,
-                          messages: history.concat([{role: 'user', content: text}])});
-    Object.assign(pending, j.ok ? {content: j.reply, model: j.model, tier: j.tier, kind: 'text'}
-                                : {content: j.msg || 'Failed', err: true});
-  } catch (e) { Object.assign(pending, {content: 'Request failed: ' + e, err: true}); }
-  pending.pending = false;
+    const r = await fetch('/stream', {method: 'POST', headers: HDR,
+      body: JSON.stringify({tier: WS.tier, task: WS.task, model: WS.model, image,
+                            messages: history.concat([{role: 'user', content: text}])})});
+    if (!r.ok || !r.body) throw new Error('HTTP ' + r.status);
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = '', got = false;
+    for (;;) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+        if (!line) continue;
+        let j; try { j = JSON.parse(line); } catch (e) { continue; }
+        if (j.model) pending.model = j.model;
+        else if (j.delta) { pending.content += j.delta; got = true; renderWsLog(); }
+        else if (j.error) { pending.content = pending.content || j.error; pending.err = !got; }
+      }
+    }
+    if (!pending.content) { pending.content = 'No reply.'; pending.err = true; }
+  } catch (e) { pending.content = pending.content || ('Request failed: ' + e); pending.err = true; }
+  pending.streaming = false;
   WS.busy = false;
   syncSend();
   renderWsLog();
@@ -748,6 +812,12 @@ const DO = {
   pickImage() { $('#wsfile').click(); },
   unattach,
   wsClear() { WS.log = []; renderWsLog(); },
+  newChat() { WS.log = []; renderWsLog(); $('#wsq').focus(); },
+  toggleKeys() {
+    const open = $('#keyspanel').hidden;
+    $('#keyspanel').hidden = !open;
+    $('#keysscrim').hidden = !open;
+  },
   keySave(btn) {
     const row = btn.closest('.prov'), input = $('input', row), key = input.value.trim();
     if (!key) { input.focus(); return; }
@@ -816,7 +886,12 @@ $('#wsmodel').addEventListener('change', e => {
   renderTasks();
   renderWhy();
 });
-$('#wsq').addEventListener('input', e => { grow(e.target); syncSend(); });
+$('#wsq').addEventListener('input', e => { grow(e.target); syncSend(); renderTok(); });
+// Stop auto-scrolling once the reader scrolls up, resume when back at the bottom.
+$('#chatscroll').addEventListener('scroll', e => {
+  const el = e.target;
+  WS.stick = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+});
 function syncSend() {
   const btn = $('.c-send');
   if (btn) btn.disabled = WS.busy || !($('#wsq').value.trim() || WS.image);

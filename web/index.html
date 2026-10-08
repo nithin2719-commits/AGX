@@ -64,11 +64,22 @@
 </div>
 
 <div id="view-ws" role="tabpanel" aria-labelledby="tab-ws" hidden>
-  <div class="ws">
-    <main class="ws-main">
-      <h2>Ask anything</h2>
-      <p class="ws-sub">Pick what you're working on and AGX uses the model made for it. Every model is yours under “Pick a model”.</p>
+  <div class="chat">
+    <div class="chat-top">
+      <button class="newchat" data-do="newChat">New chat</button>
+      <span class="chat-mode" id="chatmode"></span>
+      <button class="plain keysbtn" data-do="toggleKeys" aria-controls="keyspanel">Models &amp; keys</button>
+    </div>
 
+    <div class="chat-scroll" id="chatscroll">
+      <div class="greet" id="greet">
+        <h2>Ask anything</h2>
+        <p>A private chat on your own free models. Pick what you're working on and AGX uses the model made for it — or choose any model under “Models &amp; keys”.</p>
+      </div>
+      <div class="wslog" id="wslog" aria-live="polite"></div>
+    </div>
+
+    <div class="dock">
       <div class="tasks" id="tasks" role="radiogroup" aria-label="What are you working on?">
         <button class="chip on" role="radio" aria-checked="true" data-do="task" data-task="">Any · auto</button>
       </div>
@@ -78,15 +89,12 @@
         <button role="radio" aria-checked="true" data-do="tier" data-tier="big">Big</button>
         <button role="radio" aria-checked="false" data-do="tier" data-tier="vision">Vision</button>
       </div>
-
-      <div class="wslog" id="wslog" aria-live="polite"></div>
-
+      <div class="attach" id="attach" hidden>
+        <img alt="Attached image preview">
+        <span class="hint"></span>
+        <button class="plain" data-do="unattach" aria-label="Remove image">Remove</button>
+      </div>
       <div class="composer" id="composer">
-        <div class="attach" id="attach" hidden>
-          <img alt="Attached image preview">
-          <span class="hint"></span>
-          <button class="plain" data-do="unattach" aria-label="Remove image">Remove</button>
-        </div>
         <div class="composer-row">
           <button class="c-icon" data-do="pickImage" aria-label="Attach an image" title="Attach an image">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -100,33 +108,35 @@
       </div>
       <input type="file" id="wsfile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
       <div class="under">
-        <span class="hint">Ctrl+Enter sends. Attach an image to ask about it.</span>
-        <button class="plain" data-do="wsClear">Clear chat</button>
+        <span class="hint" id="tokline"></span>
+        <span class="hint">Ctrl+Enter sends</span>
       </div>
-
-      <details class="morepick">
-        <summary>Pick a model</summary>
-        <div class="morepick-in">
-          <label for="wsmodel">Use one model by name, instead of the task pick</label>
-          <select id="wsmodel"><option value="">Follow the task above</option></select>
-          <p class="hint" id="cloudhint" hidden></p>
-          <p class="hint" id="tierhint"></p>
-        </div>
-      </details>
-
-      <section class="imggen" aria-labelledby="imgh">
-        <h2 id="imgh">Make an image</h2>
-        <div id="imggen"><p class="hint">Loading…</p></div>
-      </section>
-    </main>
-
-    <aside class="ws-side" aria-labelledby="keyh">
-      <h2 id="keyh">Models and keys</h2>
-      <p class="hint">Keys are saved to config.env (mode 600) and never shown here again.</p>
-      <div class="tiers" id="tiers"></div>
-      <div id="provs"></div>
-    </aside>
+    </div>
   </div>
+
+  <aside class="keyspanel" id="keyspanel" aria-label="Models and keys" hidden>
+    <div class="keys-head">
+      <h2>Models &amp; keys</h2>
+      <button class="plain" data-do="toggleKeys">Close</button>
+    </div>
+    <p class="hint">Keys are saved to config.env (mode 600) and never shown here again.</p>
+
+    <div class="morepick-in">
+      <label for="wsmodel">Pick one model by name</label>
+      <select id="wsmodel"><option value="">Follow the task</option></select>
+      <p class="hint" id="cloudhint" hidden></p>
+      <p class="hint" id="tierhint"></p>
+    </div>
+
+    <h3 class="keys-h">Each size now</h3>
+    <div class="tiers" id="tiers"></div>
+    <h3 class="keys-h">Providers</h3>
+    <div id="provs"></div>
+
+    <h3 class="keys-h">Make an image</h3>
+    <div id="imggen"><p class="hint">Loading…</p></div>
+  </aside>
+  <div class="keys-scrim" id="keysscrim" data-do="toggleKeys" hidden></div>
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
