@@ -137,6 +137,47 @@ PROVIDERS = {
             "vision": [r"gpt-4o$", r"gpt-4\.1$", r"llama-4-maverick"],
         },
     },
+    "huggingface": {
+        "label": "Hugging Face",
+        "url": "https://router.huggingface.co/v1",
+        "env": "HF_TOKEN", "prefix": "hf_",
+        "signup": "https://huggingface.co/settings/tokens",
+        "blurb": "OpenAI-compatible router to 100+ models; a small free monthly credit",
+        "tiers": {
+            "big": [r"zai-org/GLM-5\.\d+$", r"moonshotai/Kimi-K\d", r"deepseek-ai/DeepSeek-V\d(?!.*Flash)",
+                    r"Qwen/Qwen3\.\d+-\d+B$", r"meta-llama/Llama-3\.3-70B"],
+            "small": [r"zai-org/GLM-5\.\d+-Flash", r"deepseek-ai/DeepSeek-V\d.*-Flash",
+                      r"meta-llama/Llama-3\.1-8B", r"google/gemma-4-31"],
+            "vision": [r"Qwen/Qwen3\.\d+-\d+B$", r"google/gemma-4-31", r"Qwen/Qwen2\.5-VL"],
+        },
+    },
+    "chatanywhere": {
+        "label": "ChatAnywhere (GPT)",
+        "url": "https://api.chatanywhere.tech/v1",
+        "env": "CHATANYWHERE_API_KEY", "prefix": "sk-",
+        "signup": "https://github.com/chatanywhere/GPT_API_free",
+        "blurb": "free GPT-4o-mini and GPT-3.5 proxy; register a token on their GitHub",
+        "static": ["gpt-4o-mini", "gpt-4.1-mini", "gpt-3.5-turbo", "deepseek-r1", "deepseek-v3"],
+        "tiers": {
+            "big": [r"^gpt-4\.1-mini$", r"^deepseek-r1$", r"^deepseek-v3$", r"^gpt-4o-mini$"],
+            "small": [r"^gpt-4o-mini$", r"^gpt-3\.5-turbo$"],
+            "vision": [r"^gpt-4o-mini$"],
+        },
+    },
+    "ovh": {
+        "label": "OVHcloud (free)",
+        "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+        "env": "", "prefix": "",
+        "signup": "https://www.ovhcloud.com/en/public-cloud/ai-endpoints/",
+        "blurb": "no key needed: Qwen 397B, Llama 70B, gpt-oss and a vision model, EU-hosted but slow",
+        "anon": True,
+        "tiers": {
+            "big": [r"Qwen3\.5-397B", r"Qwen3-Coder-30B", r"gpt-oss-120b",
+                    r"Qwen3\.8-27B", r"Meta-Llama-3_3-70B"],
+            "small": [r"Qwen3\.5-9B", r"Mistral-Small-3", r"gpt-oss-20b", r"Mistral-Nemo"],
+            "vision": [r"Qwen2\.5-VL-72B", r"Qwen3\.8-27B", r"Qwen3\.6-27B"],
+        },
+    },
     "gemini": {
         "label": "Google Gemini",
         "url": "https://generativelanguage.googleapis.com/v1beta/openai",
@@ -223,9 +264,12 @@ PROVIDERS = {
 # small work to the fastest, and images stay on this machine when Ollama can
 # see them.
 ORDER = {
-    "big": ["nvidia", "openrouter", "github", "gemini", "zai", "mistral", "groq", "cerebras", "ollama"],
-    "small": ["groq", "cerebras", "nvidia", "gemini", "github", "openrouter", "mistral", "zai", "ollama"],
-    "vision": ["ollama", "nvidia", "gemini", "github", "zai", "openrouter", "groq", "mistral"],
+    "big": ["nvidia", "openrouter", "github", "gemini", "huggingface", "zai", "mistral",
+            "chatanywhere", "groq", "cerebras", "ovh", "ollama"],
+    "small": ["groq", "cerebras", "nvidia", "gemini", "github", "openrouter", "huggingface",
+              "mistral", "zai", "chatanywhere", "ovh", "ollama"],
+    "vision": ["ollama", "nvidia", "gemini", "github", "huggingface", "ovh", "zai",
+               "openrouter", "groq", "mistral"],
 }
 
 # What are you using the model for? Each kind of work prefers different models
@@ -528,8 +572,11 @@ def ollama_setup(verbose=True):
 
 # ------------------------------------------------------------------ catalog
 def ready(prov):
-    if PROVIDERS[prov].get("local"):
+    cfg = PROVIDERS[prov]
+    if cfg.get("local"):
         return ollama_up()
+    if cfg.get("anon"):           # a free endpoint that takes no key
+        return True
     return bool(key_for(prov))
 
 

@@ -560,6 +560,7 @@ function updateProvRow(row, r) {
   const t = r.test;
   const pill = r.local ? (r.ready ? ['ok', 'Running'] : ['warn', 'Not running'])
     : r.cooling ? ['warn', `Resting ${r.cooling}s`]
+    : r.anon ? (t ? (t.ok ? ['ok', 'Free, works'] : ['bad', 'Test failed']) : ['ok', 'Free, no key'])
     : !r.has_key ? ['', 'No key']
     : t && t.ok ? ['ok', 'Works'] : t ? ['bad', 'Test failed'] : ['', 'Key saved, not tested'];
   row.q.pill.className = 'pill ' + pill[0];

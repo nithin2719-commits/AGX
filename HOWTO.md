@@ -111,10 +111,12 @@ agy quota.
 - **Models and keys**: open a provider, paste its key and press **Save key**. It
   is written to `config.env` (mode 600) and never shown in the browser again.
   **Test** makes one tiny call and lists the model it would use for each size.
-  With no keys at all, everything runs on Ollama if it is up. Providers: NVIDIA
-  NIM (free — GLM-5.x, Kimi K3, Nemotron 550B), OpenRouter (free tier), GitHub
-  Models (free GPT-4.1, DeepSeek, Llama with a GitHub token), Google Gemini,
-  Z.ai, Groq, Cerebras and Mistral.
+  With no keys at all, everything runs on Ollama, plus OVHcloud — a free
+  endpoint that needs no key (Qwen 397B, Llama 70B, a vision model; slow). Keyed
+  providers: NVIDIA NIM (free — GLM-5.x, Kimi K3, Nemotron 550B), OpenRouter
+  (free tier), GitHub Models (free GPT-4.1, DeepSeek, Llama with a GitHub
+  token), Hugging Face (100+ models), ChatAnywhere (free GPT proxy), Google
+  Gemini, Z.ai, Groq, Cerebras and Mistral.
 - **Make an image** works only after a provider passes **Test images**
   with a real image. NVIDIA NIM and Gemini are the candidates. Ollama refuses
   image models over its API, so it is never offered.

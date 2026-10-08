@@ -54,6 +54,7 @@ def state():
         rows.append({
             "id": prov, "label": cfg["label"], "blurb": cfg["blurb"],
             "signup": cfg["signup"], "env": cfg["env"], "local": bool(cfg.get("local")),
+            "anon": bool(cfg.get("anon")),
             "prefix": cfg["prefix"], "has_key": bool(providers.key_for(prov)),
             "ready": providers.ready(prov), "cooling": providers.cooling(prov),
             "test": tests.get(prov),
