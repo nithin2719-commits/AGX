@@ -4,17 +4,17 @@
    orchid for Claude, cyan for agy. Everything else is petrol-ink and paper. */
 
 :root{
-  --ink:#0f1d21;        /* page */
-  --ink-2:#14262b;      /* raised: side column, panels */
-  --ink-3:#1b3238;      /* selected row, fields */
-  --rule:#26434b;       /* hairlines */
-  --rule-2:#3a5d66;     /* control borders */
-  --paper:#e9f1ef;      /* main text, primary buttons */
-  --paper-2:#bccdca;    /* secondary text */
-  --mist:#8ea8a4;       /* quiet text, 6:1 on --ink */
-  --ok:#5ad19a; --warn:#f0b44c; --bad:#ff7d7d;
-  --claude:#c9a5ff; --agy:#6fd3ec;
-  --grad:linear-gradient(115deg,#6fd3ec,#9ab6f0 45%,#c9a5ff);  /* agy cyan -> Claude orchid */
+  --ink:#0a0a0b;        /* page: near-black, neutral */
+  --ink-2:#141416;      /* raised: side column, panels */
+  --ink-3:#1c1c1f;      /* selected row, fields */
+  --rule:#27272a;       /* hairlines */
+  --rule-2:#3a3a40;     /* control borders */
+  --paper:#f4f4f5;      /* main text, primary buttons */
+  --paper-2:#c7c7cc;    /* secondary text */
+  --mist:#8e8e96;       /* quiet text */
+  --ok:#4ade80; --warn:#fbbf24; --bad:#f87171;
+  --claude:#c4b5fd; --agy:#7dd3fc;
+  --grad:linear-gradient(115deg,#7dd3fc,#818cf8 48%,#c084fc);  /* agy sky -> Claude violet */
   --sign:"Big Shoulders Display","Arial Narrow",system-ui,sans-serif;
   --text:"Atkinson Hyperlegible Next","Atkinson Hyperlegible",system-ui,sans-serif;
   --code:"Atkinson Hyperlegible Mono",ui-monospace,"JetBrainsMono Nerd Font",monospace;
@@ -41,14 +41,14 @@ button,.btn{font:600 15px/1.2 var(--text);color:var(--paper);background:transpar
   text-decoration:none}
 button:disabled{opacity:.45;cursor:progress}
 .primary{background:var(--paper);border-color:var(--paper);color:var(--ink)}
-.danger{color:var(--bad);border-color:rgba(255,125,125,.45)}
-.b-claude{color:var(--claude);border-color:rgba(201,165,255,.45)}
-.b-agy{color:var(--agy);border-color:rgba(111,211,236,.45)}
+.danger{color:var(--bad);border-color:rgba(248,113,113,.4)}
+.b-claude{color:var(--claude);border-color:rgba(196,181,253,.4)}
+.b-agy{color:var(--agy);border-color:rgba(125,211,252,.4)}
 .plain{border-color:transparent;padding-left:8px;padding-right:8px}
 @media (hover:hover){
   button:hover:not(:disabled),.btn:hover{background:rgba(233,241,239,.07);border-color:var(--paper-2)}
   .primary:hover:not(:disabled){background:#fff;border-color:#fff}
-  .danger:hover:not(:disabled){background:rgba(255,125,125,.1);border-color:var(--bad)}
+  .danger:hover:not(:disabled){background:rgba(248,113,113,.1);border-color:var(--bad)}
   .plain:hover:not(:disabled){border-color:transparent}
 }
 :focus-visible{outline:2px solid var(--paper);outline-offset:2px}
@@ -74,8 +74,8 @@ label{font-weight:600}
 
 /* ---------- hero: what the crew is doing ---------- */
 .hero{padding:clamp(28px,5vw,56px) var(--gut) 28px;border-bottom:1px solid var(--rule)}
-.now{font:800 clamp(34px,5.4vw,60px)/1.02 var(--sign);max-width:22em;margin:0;
-  letter-spacing:.005em;overflow-wrap:anywhere}
+.now{font:700 clamp(28px,4vw,46px)/1.05 var(--sign);max-width:22em;margin:0;
+  letter-spacing:.01em;overflow-wrap:anywhere}
 .now .task{color:var(--paper-2)}
 .totals{max-width:62ch;margin:14px 0 0;color:var(--paper-2);font-size:17px}
 .focus{display:flex;align-items:flex-start;gap:12px;max-width:760px;margin:22px 0 0}
@@ -120,7 +120,7 @@ label{font-weight:600}
 /* ---------- one project ---------- */
 .detail{padding:28px var(--gut) 72px;min-width:0}
 .proj>header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
-.proj h2{font:800 clamp(36px,4.6vw,52px)/1 var(--sign);letter-spacing:.01em;overflow-wrap:anywhere;min-width:0}
+.proj h2{font:700 clamp(28px,3.4vw,40px)/1.05 var(--sign);letter-spacing:.01em;overflow-wrap:anywhere;min-width:0}
 .proj .state{margin:0;font-size:16px;color:var(--paper-2)}
 .proj .state.is-ok{color:var(--ok)} .proj .state.is-warn{color:var(--warn)}
 .proj .path{width:100%;margin:2px 0 0;color:var(--mist);overflow-wrap:anywhere}
@@ -182,10 +182,10 @@ label{font-weight:600}
 .ws{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);gap:0;min-height:70vh}
 /* A faint dotted canvas, like a plotter grid, behind the chat. */
 .ws-main{padding:28px var(--gut) 60px;min-width:0;
-  background-image:radial-gradient(rgba(233,241,239,.06) 1px,transparent 1px);
+  background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);
   background-size:24px 24px}
 .ws-side{background:var(--ink-2);border-left:1px solid var(--rule);padding:28px 24px 60px;min-width:0}
-.ws h2{font:800 clamp(30px,3.6vw,40px)/1.05 var(--sign);letter-spacing:.01em}
+.ws h2{font:700 clamp(26px,3vw,36px)/1.05 var(--sign);letter-spacing:.01em}
 .ws-sub{max-width:62ch;color:var(--paper-2);margin:8px 0 22px}
 .seg{display:inline-flex;border:1px solid var(--rule-2);border-radius:999px;overflow:hidden;margin-bottom:8px}
 .seg button{border:0;border-radius:0;border-right:1px solid var(--rule-2);min-height:40px;padding:8px 16px}
@@ -216,8 +216,8 @@ label{font-weight:600}
 /* the signature composer: a cyan->orchid gradient rim that lights on focus */
 .composer{border-radius:20px;background:var(--grad);padding:1.6px;
   filter:saturate(.9) brightness(.86);transition:filter .25s,box-shadow .25s;
-  box-shadow:0 8px 30px -16px rgba(130,170,240,.4)}
-.composer:focus-within{filter:none;box-shadow:0 16px 52px -14px rgba(130,170,240,.6)}
+  box-shadow:0 8px 30px -16px rgba(129,140,248,.35)}
+.composer:focus-within{filter:none;box-shadow:0 16px 52px -14px rgba(129,140,248,.5)}
 .composer-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:end;gap:8px;
   background:var(--ink-2);border-radius:18.4px;padding:9px 10px}
 .composer textarea{border:0;background:transparent;border-radius:0;min-height:30px;max-height:220px;
@@ -262,7 +262,7 @@ label{font-weight:600}
 .tres .tt{color:var(--mist)}
 
 /* ---------- overlay, toast ---------- */
-#ov{position:fixed;inset:0;z-index:30;background:rgba(6,14,16,.86);display:flex;align-items:flex-start;
+#ov{position:fixed;inset:0;z-index:30;background:rgba(8,8,10,.86);display:flex;align-items:flex-start;
   justify-content:center;padding:40px 16px;overflow:auto}
 #ovb{width:min(980px,100%);background:var(--ink-2);border-radius:12px;padding:24px}
 #ovh{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
