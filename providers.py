@@ -760,8 +760,8 @@ def chat(messages, tier="small", temperature=0.2):
             errors.append(f"{prov}/{model}: {str(e)[:120]}")
             if resting(prov, model):
                 continue                  # this model only: try the provider's next one
-            if re.search(r"HTTP 40[13]\b", str(e)):
-                cool(prov, 3600)          # rejected key: stop trying for an hour
+            if re.search(r"HTTP 40[123]\b", str(e)):
+                cool(prov, 3600)          # rejected key or no credit: rest an hour
                 tried.append(prov)
             else:
                 # A dropped connection is retried once before the provider
