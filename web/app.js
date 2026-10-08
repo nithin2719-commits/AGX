@@ -76,10 +76,11 @@ function route() {
   const raw = location.hash.slice(1);
   if (raw === '/workspace') { showView('ws'); return; }
   showView('ops');
+  const was = SEL;
   SEL = raw.startsWith('/p/') ? decodeURIComponent(raw.slice(3)) : null;
   if (!LOADED) return;                       // the first refresh renders
   renderList(); renderDetail();
-  if (SEL && !WIDE.matches) $('#detail').scrollIntoView({block: 'start'});
+  if (SEL !== was) { window.scrollTo(0, 0); }
 }
 function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
 function showView(v) {
@@ -89,12 +90,9 @@ function showView(v) {
   $('#tab-ws').setAttribute('aria-selected', String(ws));
   if (ws) wsRefresh();                       // keys and routing change elsewhere
 }
-// The project shown in the detail: the one in the address, or on a wide
-// screen the first in the list. On a phone, no address means the list.
-function current() {
-  if (SEL && byName(SEL)) return SEL;
-  return WIDE.matches && DATA.length ? DATA[0].name : null;
-}
+// You open on the centred list of project names; a project opens only when you
+// click into it (its name is in the address).
+function current() { return SEL && byName(SEL) ? SEL : null; }
 
 // ---------------------------------------------------------------- words
 function working(p) {
@@ -139,51 +137,48 @@ function renderHero() {
 }
 
 // ---------------------------------------------------------------- project list
-// Put el at position i of parent, keeping focus if it moves between groups.
-function put(el, parent, i) {
-  if (parent.children[i] === el) return;
-  const a = document.activeElement, inside = a && el.contains(a);
-  parent.insertBefore(el, parent.children[i] || null);
-  if (inside) a.focus({preventScroll: true});
+// Fade each project card up as it scrolls into view, once.
+let OBS = null;
+function observe(el) {
+  if (!('IntersectionObserver' in window)) { el.classList.add('in'); return; }
+  if (!OBS) OBS = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); OBS.unobserve(e.target); }
+  }), {threshold: 0.12});
+  OBS.observe(el);
 }
+const STORDER = {running: 0, stalled: 1, waiting: 2, idle: 3, paused: 4};
 function renderList() {
-  const nav = $('#plist');
-  if (!DATA.length) { setHTML(nav, '<p class="group-h">Nothing here yet.</p>'); ROWS.clear(); return; }
-  if (nav._html) { nav.innerHTML = ''; nav._html = null; }
-  const cur = current();
-  let at = 0;
-  const seen = new Set();
-  for (const [g, label] of GROUPS) {
-    const items = DATA.filter(p => p.status === g);
-    if (!GROUP_H[g]) {
-      GROUP_H[g] = document.createElement('h3');
-      GROUP_H[g].className = 'group-h g-' + g;
-      GROUP_H[g].textContent = label;
-    }
-    if (!items.length) { GROUP_H[g].remove(); continue; }
-    put(GROUP_H[g], nav, at++);
-    for (const p of items) {
-      seen.add(p.name);
-      let b = ROWS.get(p.name);
-      if (!b) {
-        b = document.createElement('button');
-        b.className = 'pick';
-        b.dataset.sel = p.name;
-        b.innerHTML = '<span class="nm"></span><span class="st"></span><span class="meter"><i></i></span>';
-        ROWS.set(p.name, b);
-      }
-      setText($('.nm', b), p.name);
-      const st = $('.st', b);
-      setText(st, statusText(p));
-      st.className = 'st ' + statusClass(p);
-      const tot = p.tasks.done + p.tasks.doing + p.tasks.todo;
-      $('i', b).style.width = (tot ? p.tasks.done / tot * 100 : 0) + '%';
-      b.setAttribute('aria-current', String(p.name === cur));
-      b.setAttribute('aria-label', `${p.name}, ${statusText(p)}, ${p.tasks.done} of ${tot} tasks done`);
-      put(b, nav, at++);
-    }
+  const grid = $('#plist');
+  if (!DATA.length) {
+    ROWS.clear();
+    setHTML(grid, `<div class="pempty">No projects yet. Press <b>Add project</b> above,
+      or run <code>bash ~/agent-team/add-project.sh /path/to/repo</code>.</div>`);
+    grid._empty = true;
+    return;
   }
-  for (const [n, b] of ROWS) if (!seen.has(n)) { b.remove(); ROWS.delete(n); }
+  if (grid._empty) { grid.innerHTML = ''; grid._empty = false; }
+  const sorted = [...DATA].sort((a, b) =>
+    (STORDER[a.status] - STORDER[b.status]) || a.name.localeCompare(b.name));
+  const seen = new Set();
+  sorted.forEach((p, i) => {
+    seen.add(p.name);
+    let c = ROWS.get(p.name);
+    if (!c) {
+      c = document.createElement('button');
+      c.dataset.sel = p.name;
+      c.innerHTML = '<span class="nm"></span><div><span class="st"></span><span class="meter"><i></i></span></div>';
+      ROWS.set(p.name, c);
+      observe(c);
+    }
+    c.className = 'pcard s-' + p.status + (c.classList.contains('in') ? ' in' : '');
+    setText($('.nm', c), p.name);
+    setText($('.st', c), statusText(p));
+    const tot = p.tasks.done + p.tasks.doing + p.tasks.todo;
+    $('i', c).style.width = (tot ? p.tasks.done / tot * 100 : 0) + '%';
+    c.setAttribute('aria-label', `${p.name}, ${statusText(p)}, ${p.tasks.done} of ${tot} tasks done`);
+    if (grid.children[i] !== c) grid.insertBefore(c, grid.children[i] || null);
+  });
+  for (const [n, c] of ROWS) if (!seen.has(n)) { c.remove(); ROWS.delete(n); }
 }
 
 // ---------------------------------------------------------------- one project
@@ -322,39 +317,20 @@ function updateProject(c, p) {
   if (BUSY) lockActions(true);
 }
 function renderDetail() {
-  const box = $('#detail');
-  if (!DATA.length) {
-    setHTML(box, `<div class="empty"><h2>Give the crew a project</h2>
-      <p>Press Add project above and pick one of your git repos, or run
-      <code>bash ~/agent-team/add-project.sh /path/to/repo</code>.</p></div>`);
-    return;
-  }
-  const name = current();
-  document.body.classList.toggle('one', !!(SEL && byName(SEL)));
+  const box = $('#detail'), name = current();
+  $('#view-ops').classList.toggle('has-sel', !!name);
   if (!name) return;
   let c = PROJ.get(name);
   if (!c) { c = makeProject(name); PROJ.set(name, c); }
-  if (box.firstElementChild !== c.el) { box.replaceChildren(c.el); box._html = null; }
+  if (box.firstElementChild !== c.el) {
+    box.replaceChildren(c.el); box._html = null;
+    c.el.classList.remove('viewfade'); void c.el.offsetWidth; c.el.classList.add('viewfade');
+  }
   updateProject(c, byName(name));
 }
 
-// ---------------------------------------------------------------- side column
-function renderFeed() {
-  const rows = [];
-  DATA.forEach(p => working(p).forEach(a => rows.push({k: 0, a, p: p.name, t: p.agents[a].task || 'working'})));
-  DATA.forEach(p => { if (p.status === 'waiting' && p.next_task) rows.push({k: 1, a: '', p: p.name, t: p.next_task}); });
-  DATA.forEach(p => (p.progress || []).slice(-1).forEach(l => {
-    const m = l.match(/\|\s*(claude|agy)\s*\|\s*(.*)$/);
-    if (m) rows.push({k: 2, a: m[1], p: p.name, t: m[2]});
-  }));
-  rows.sort((x, y) => x.k - y.k);
-  const who = a => `<span class="t-${a}">${NAME[a]}</span>`;
-  const head = r => (r.k === 0 ? `${who(r.a)} working in ${esc(r.p)}`
-    : r.k === 1 ? `Next up in ${esc(r.p)}` : `Done by ${who(r.a)} in ${esc(r.p)}`);
-  setHTML($('#feed'), rows.length ? rows.slice(0, 8).map(r => `<li>
-      <span class="k${r.k ? '' : ' is-ok'}">${head(r)}</span>${esc(r.t)}</li>`).join('')
-    : '<li class="quiet">Nothing has happened yet.</li>');
-}
+// The live activity feed was removed with the side column; this is now a no-op.
+function renderFeed() {}
 function renderModels() {
   const box = $('#models');
   const sig = JSON.stringify(MODELS);
@@ -377,7 +353,7 @@ function renderModels() {
   const n = $('#note');
   if (document.activeElement !== n && !n._dirty && n.value !== (SET.session_note || '')) { n.value = SET.session_note || ''; grow(n); }
 }
-function grow(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; }
+function grow(t) { if (!t || t.tagName !== 'TEXTAREA') return; t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; }
 
 // ---------------------------------------------------------------- overlay
 async function openFile(f, label) {
@@ -611,8 +587,17 @@ function mdLite(src) {
   blocks.forEach((chunk, i) => {
     if (i % 2) {                             // inside a fenced code block
       const nl = chunk.indexOf('\n');
-      const code = nl >= 0 ? chunk.slice(nl + 1) : chunk;
-      out += `<pre><code>${esc(code.replace(/\n$/, ''))}</code></pre>`;
+      const lang = (nl >= 0 ? chunk.slice(0, nl) : '').trim().toLowerCase();
+      const code = (nl >= 0 ? chunk.slice(nl + 1) : chunk).replace(/\n$/, '');
+      const runnable = /^(html|svg|xml|htm)$/.test(lang) ||
+        (!lang && /<(!doctype|html|svg|body|div|canvas|script|style|h[1-6]|p|ul|table)[\s>]/i.test(code));
+      const label = lang ? lang.toUpperCase() : (runnable ? 'HTML' : 'CODE');
+      let b64 = ''; try { b64 = btoa(unescape(encodeURIComponent(code))); } catch (e) { b64 = ''; }
+      out += `<div class="artifact" data-code="${b64}" data-run="${runnable ? 1 : 0}">
+        <div class="art-bar"><span class="art-lang">${esc(label)}</span>
+          ${runnable && b64 ? '<button class="art-btn" data-do="artRun">Preview</button>' : ''}
+          <button class="art-btn" data-do="artCopy">Copy</button></div>
+        <div class="art-view"><pre><code>${esc(code)}</code></pre></div></div>`;
       return;
     }
     const inline = s => esc(s)
@@ -813,6 +798,26 @@ const DO = {
   unattach,
   wsClear() { WS.log = []; renderWsLog(); },
   newChat() { WS.log = []; renderWsLog(); $('#wsq').focus(); },
+  artRun(btn) {
+    const art = btn.closest('.artifact'), view = $('.art-view', art);
+    let code = ''; try { code = decodeURIComponent(escape(atob(art.dataset.code || ''))); } catch (e) {}
+    if (art.classList.contains('previewing')) {
+      view.innerHTML = `<pre><code>${esc(code)}</code></pre>`;
+      art.classList.remove('previewing'); btn.textContent = 'Preview'; return;
+    }
+    const html = /<html[\s>]|<!doctype/i.test(code) ? code
+      : `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><body style="margin:12px;font-family:system-ui,sans-serif">${code}`;
+    const fr = document.createElement('iframe');
+    fr.className = 'art-frame'; fr.title = 'Preview'; fr.setAttribute('sandbox', 'allow-scripts allow-modals');
+    fr.srcdoc = html;
+    view.replaceChildren(fr);
+    art.classList.add('previewing'); btn.textContent = 'Code';
+  },
+  async artCopy(btn) {
+    let code = ''; try { code = decodeURIComponent(escape(atob(btn.closest('.artifact').dataset.code || ''))); } catch (e) {}
+    try { await navigator.clipboard.writeText(code); toast('Copied'); }
+    catch (e) { toast('Copy failed — select and copy manually', true); }
+  },
   toggleKeys() {
     const open = $('#keyspanel').hidden;
     $('#keyspanel').hidden = !open;

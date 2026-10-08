@@ -24,41 +24,40 @@
 </header>
 
 <div id="view-ops" role="tabpanel" aria-labelledby="tab-ops">
-  <section class="hero" aria-label="What the crew is doing">
-    <h1 class="now" id="now" aria-live="polite">Checking on the crew…</h1>
-    <p class="totals" id="totals"></p>
-    <div class="focus">
-      <label for="note">Your focus</label>
-      <textarea id="note" rows="1" placeholder="What you are working on. It stays here between sessions."></textarea>
-    </div>
-    <div class="row team" role="group" aria-label="Whole team">
-      <button class="primary" data-act="cycle">Auto cycle: decide and work</button>
-      <button data-act="team">Run team</button>
-      <a class="btn" href="/office" target="_blank" rel="noopener">Pixel office</a>
-      <button data-do="toggleScan" aria-expanded="false" aria-controls="scan">Add project</button>
-      <button class="danger" data-act="stop_all">Stop everything</button>
-    </div>
-    <div class="scan" id="scan" hidden>
-      <div class="row">
-        <input type="text" id="newpath" class="grow" placeholder="Path to a git repo, e.g. ~/Projects/mailflow" aria-label="Path of a project to add">
-        <button data-do="addManual">Add path</button>
-        <button class="plain" data-do="toggleScan">Close</button>
+  <div id="opslist">
+    <section class="ohero" aria-label="Your crew">
+      <h1 class="now" id="now" aria-live="polite">Checking on the crew…</h1>
+      <p class="totals" id="totals"></p>
+      <div class="focusrow">
+        <label class="sr" for="note">Your focus</label>
+        <input type="text" id="note" placeholder="What you're working on — kept between sessions">
       </div>
-      <div id="scanlist"></div>
-    </div>
-  </section>
+      <div class="oactions" role="group" aria-label="Whole team">
+        <button class="primary" data-act="cycle">Auto cycle</button>
+        <button data-act="team">Run team</button>
+        <a class="btn" href="/office" target="_blank" rel="noopener">Pixel office</a>
+        <button data-do="toggleScan" aria-expanded="false" aria-controls="scan">Add project</button>
+        <button class="danger" data-act="stop_all">Stop everything</button>
+      </div>
+      <div class="scan" id="scan" hidden>
+        <div class="row">
+          <input type="text" id="newpath" class="grow" placeholder="Path to a git repo, e.g. ~/Projects/mailflow" aria-label="Path of a project to add">
+          <button data-do="addManual">Add path</button>
+          <button class="plain" data-do="toggleScan">Close</button>
+        </div>
+        <div id="scanlist"></div>
+      </div>
+    </section>
 
-  <div class="desk">
-    <aside class="side" aria-label="Projects and activity">
-      <h2>Projects</h2>
-      <nav id="plist" aria-label="Projects"></nav>
-      <h2>Recent activity</h2>
-      <ol class="feed" id="feed"></ol>
-      <details class="settings">
-        <summary>Models per agent</summary>
-        <div id="models"></div>
-      </details>
-    </aside>
+    <main id="plist" class="pgrid" aria-label="Projects"></main>
+
+    <details class="opsettings">
+      <summary>Models per agent</summary>
+      <div id="models"></div>
+    </details>
+  </div>
+
+  <div id="opsdetail">
     <main class="detail" id="detail"></main>
   </div>
 </div>

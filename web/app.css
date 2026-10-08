@@ -75,18 +75,18 @@ label{font-weight:600}
 .views button[aria-selected="true"]{background:var(--ink-3);border-color:var(--rule-2)}
 .updated{margin:0 0 0 auto;color:var(--mist);font-size:14px}
 
-/* ---------- hero: what the crew is doing ---------- */
-.hero{padding:clamp(28px,5vw,56px) var(--gut) 28px;border-bottom:1px solid var(--rule)}
-.now{font:700 clamp(28px,4vw,46px)/1.05 var(--sign);max-width:22em;margin:0;
+/* ---------- operations: centred project launcher ---------- */
+#opslist{max-width:960px;margin:0 auto;padding:0 var(--gut)}
+.ohero{text-align:center;padding:clamp(36px,6vw,72px) 0 28px}
+.now{font:700 clamp(30px,4.4vw,52px)/1.06 var(--sign);margin:0 auto;max-width:18em;
   letter-spacing:.01em;overflow-wrap:anywhere}
 .now .task{color:var(--paper-2)}
-.totals{max-width:62ch;margin:14px 0 0;color:var(--paper-2);font-size:17px}
-.focus{display:flex;align-items:flex-start;gap:12px;max-width:760px;margin:22px 0 0}
-.focus label{padding-top:11px;color:var(--mist);font-weight:600;white-space:nowrap}
-.focus textarea{min-height:44px;resize:none;overflow:hidden}
-.team{margin-top:24px}
-.scan{margin-top:20px;max-width:900px;background:var(--ink-2);border-radius:12px;padding:20px}
-.scan h3{font:700 22px/1.2 var(--sign);margin:18px 0 6px}
+.totals{max-width:60ch;margin:14px auto 0;color:var(--paper-2);font-size:16px}
+.focusrow{max-width:560px;margin:22px auto 0}
+.focusrow input{text-align:center}
+.oactions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:20px}
+.scan{margin:18px auto 0;max-width:760px;text-align:left;background:var(--ink-2);border-radius:14px;padding:20px}
+.scan h3{font:700 20px/1.2 var(--sign);margin:16px 0 6px}
 .found{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px;align-items:center;
   padding:12px 0;border-top:1px solid var(--rule)}
 .found b{font-weight:700}
@@ -94,31 +94,38 @@ label{font-weight:600}
 .found button{grid-column:2;grid-row:1/span 3}
 .found.theirs b{color:var(--paper-2)}
 
-/* ---------- desk: project list and one project ---------- */
-.desk{display:grid;grid-template-columns:330px minmax(0,1fr);min-height:60vh}
-.side{border-right:1px solid var(--rule);background:var(--ink-2);padding:8px 0 40px}
-.side h2{font:700 22px/1.2 var(--sign);padding:20px 20px 8px;letter-spacing:.01em}
-.group-h{font-size:14px;color:var(--mist);padding:14px 20px 6px;margin:0;font-weight:600}
-.group-h.g-running{color:var(--ok)} .group-h.g-stalled{color:var(--warn)}
-.pick{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;width:100%;
-  text-align:left;border:0;border-radius:0;border-left:3px solid transparent;
-  padding:12px 20px 12px 17px;min-height:64px;align-items:baseline}
-.pick[aria-current="true"]{background:var(--ink-3);border-left-color:var(--paper)}
-.pick .nm{font:700 22px/1.15 var(--sign);letter-spacing:.01em;overflow-wrap:anywhere}
-.pick .st{font-size:14px;color:var(--mist);font-weight:400;text-align:right}
-.pick .st.is-ok{color:var(--ok)} .pick .st.is-warn{color:var(--warn)}
-.pick .meter{grid-column:1/-1;height:4px;background:var(--rule);border-radius:2px;overflow:hidden;margin-top:6px}
-.pick .meter i{display:block;height:100%;background:var(--paper-2)}
-@media (hover:hover){.pick:hover:not(:disabled){background:rgba(233,241,239,.04);border-color:transparent;border-left-color:var(--rule-2)}
-  .pick[aria-current="true"]:hover:not(:disabled){border-left-color:var(--paper);background:var(--ink-3)}}
-.feed{list-style:none;margin:0;padding:0 20px}
-.feed li{padding:10px 0;border-top:1px solid var(--rule);font-size:15px;overflow-wrap:anywhere}
-.feed li:first-child{border-top:0}
-.feed .k{display:block;font-size:14px;color:var(--mist)}
-.feed .k.is-ok{color:var(--ok)}
-.settings{margin:20px 20px 0;border-top:1px solid var(--rule);padding-top:14px}
-.settings summary{cursor:pointer;font-weight:600;min-height:32px}
+/* project name cards, centred, fading up as they enter */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;
+  padding:8px 0 36px}
+.pcard{position:relative;text-align:center;border:1px solid var(--rule);border-radius:16px;
+  background:var(--ink-2);padding:26px 22px 22px;min-height:128px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:12px;cursor:pointer;
+  opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease,border-color .15s,background .15s,box-shadow .15s}
+.pcard.in{opacity:1;transform:none}
+@media (hover:hover){.pcard:hover{border-color:var(--rule-2);background:var(--ink-3);
+  box-shadow:0 10px 30px -18px #000}}
+.pcard .nm{font:700 clamp(23px,2.4vw,29px)/1.1 var(--sign);letter-spacing:.01em;overflow-wrap:anywhere}
+.pcard .st{font-size:14px;color:var(--mist);display:inline-flex;align-items:center;gap:8px;justify-content:center}
+.pcard .st::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--mist);flex:none}
+.pcard.s-running .st{color:var(--ok)} .pcard.s-running .st::before{background:var(--ok)}
+.pcard.s-stalled .st{color:var(--warn)} .pcard.s-stalled .st::before{background:var(--warn)}
+.pcard .meter{position:absolute;left:16px;right:16px;bottom:12px;height:3px;background:var(--rule);
+  border-radius:2px;overflow:hidden}
+.pcard.s-idle .meter,.pcard.s-paused .meter{display:none}
+.pcard .meter i{display:block;height:100%;background:var(--paper-2)}
+.pempty{grid-column:1/-1;text-align:center;color:var(--paper-2);padding:40px 0}
+.opsettings{max-width:560px;margin:0 auto 48px;border-top:1px solid var(--rule);padding-top:14px}
+.opsettings summary{cursor:pointer;font-weight:600;min-height:36px;color:var(--paper-2);text-align:center}
 .mrow{display:grid;gap:6px;margin-top:14px}
+@media (prefers-reduced-motion:reduce){.pcard{opacity:1;transform:none;transition:none}}
+
+/* list <-> detail: only one is shown, the other fades out */
+#opsdetail{max-width:900px;margin:0 auto;padding:0 var(--gut)}
+#view-ops:not(.has-sel) #opsdetail{display:none}
+#view-ops.has-sel #opslist{display:none}
+.viewfade{animation:fadeup .35s ease both}
+@keyframes fadeup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.viewfade{animation:none}}
 
 /* ---------- one project ---------- */
 .detail{padding:28px var(--gut) 72px;min-width:0}
@@ -210,6 +217,13 @@ label{font-weight:600}
 .wmsg .body pre{background:#0d0d0f;border:1px solid var(--rule);border-radius:10px;
   padding:12px 14px;overflow-x:auto;margin:0 0 10px}
 .wmsg .body pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.5}
+/* code artifact: a code block with a live Preview, like an assistant canvas */
+.artifact{border:1px solid var(--rule);border-radius:12px;overflow:hidden;margin:0 0 12px;background:#0d0d0f}
+.art-bar{display:flex;align-items:center;gap:8px;padding:7px 8px 7px 12px;border-bottom:1px solid var(--rule);background:var(--ink-3)}
+.art-lang{flex:1;font:600 12px/1 var(--code);letter-spacing:.08em;color:var(--mist)}
+.art-btn{min-height:30px;padding:5px 12px;font-size:13px;border-radius:8px}
+.art-view pre{margin:0;border:0;border-radius:0}
+.art-frame{width:100%;height:min(440px,60vh);border:0;background:#fff;display:block}
 .wmsg .caret{display:inline-block;width:7px;height:1.05em;vertical-align:-2px;margin-left:1px;
   background:var(--paper-2);animation:blink 1s step-end infinite}
 @keyframes blink{50%{opacity:0}}
@@ -301,23 +315,12 @@ label{font-weight:600}
 .signin h1{font:800 64px/1 var(--sign);margin-bottom:12px}
 .signin form{display:grid;gap:12px;margin-top:22px}
 
-/* ---------- narrow screens: list first, then one project ---------- */
-@media (max-width:900px){
-  .desk{grid-template-columns:minmax(0,1fr)}
-  .side{border-right:0}
-  body.one .side{display:none}
-  body:not(.one) .detail{display:none}
+/* ---------- narrow screens ---------- */
+@media (max-width:760px){
   .agent{grid-template-columns:80px minmax(0,1fr)}
   .agent .task{grid-column:1/-1}
-  .focus{flex-direction:column;gap:6px}
-  .focus label{padding-top:0}
-  .team>*{flex:1 1 auto}
-  .updated{width:100%;margin:0}
-  /* With a project open on a phone, the hero shrinks to its sentence so the
-     project starts near the top; going back restores it. */
-  body.one .hero{padding-top:18px;padding-bottom:16px}
-  body.one .now{font-size:24px}
-  body.one .totals,body.one .focus,body.one .team,body.one .scan{display:none}
+  .oactions>*{flex:1 1 auto}
+  .updated{display:none}
+  .pgrid{grid-template-columns:minmax(0,1fr)}
 }
-@media (min-width:901px){.back{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
