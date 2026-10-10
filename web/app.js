@@ -109,31 +109,22 @@ function statusText(p) {
 const statusClass = p => (p.status === 'running' ? 'is-ok' : p.status === 'stalled' ? 'is-warn' : '');
 
 // ---------------------------------------------------------------- hero
+// A compact one-line status, not a headline.
 function renderHero() {
+  if (!DATA.length) { setHTML($('#now'), 'No projects yet — press the + to add one.'); return; }
   const crew = [];
   DATA.forEach(p => working(p).forEach(a => crew.push({a, p: p.name, t: p.agents[a].task})));
-  let html;
-  if (!DATA.length) html = 'No projects yet. Add one to put the crew to work.';
-  else if (!crew.length) html = 'Nobody is working right now.';
-  else {
-    html = crew.slice(0, 2).map(w => `<span class="t-${w.a}">${NAME[w.a]}</span> is working on ${esc(w.p)}`
-      + (w.t ? `: <span class="task">${esc(short(w.t, 80))}</span>` : '') + '.').join(' ');
-    if (crew.length > 2) html += ` ${crew.length - 2} more running.`;
-    const free = ['claude', 'agy'].filter(a => !crew.some(w => w.a === a));
-    if (free.length === 1) html += ` <span class="t-${free[0]}">${NAME[free[0]]}</span> is free.`;
-  }
-  setHTML($('#now'), html);
-  if (!DATA.length) { setHTML($('#totals'), ''); return; }
   const done = DATA.reduce((n, p) => n + p.tasks.done, 0);
   const left = DATA.reduce((n, p) => n + p.tasks.todo, 0);
   const fail = DATA.reduce((n, p) => n + ((p.work || {}).failed || 0), 0);
-  const stalled = DATA.filter(p => p.status === 'stalled');
-  let t = `${plural(left, 'task')} waiting across ${plural(DATA.length, 'project')}, ${done} done so far.`;
-  if (!crew.length && left) t += ' Auto cycle puts the crew to work.';
-  if (!left && !crew.length) t += ' Hold a meeting on a project to plan more.';
-  if (stalled.length) t += ` <span class="is-warn">${stalled.map(p => esc(p.name)).join(', ')} ${stalled.length > 1 ? 'have' : 'has'} a claimed task nobody is working on.</span>`;
-  if (fail) t += ` <span class="is-bad">${plural(fail, 'run')} ended without a commit.</span>`;
-  setHTML($('#totals'), t);
+  let lead;
+  if (!crew.length) lead = '<span class="big">Nobody working</span>';
+  else if (crew.length === 1) lead = `<span class="big"><span class="t-${crew[0].a}">${NAME[crew[0].a]}</span> on ${esc(crew[0].p)}</span>`
+    + (crew[0].t ? ` — <span class="task">${esc(short(crew[0].t, 60))}</span>` : '');
+  else lead = `<span class="big">${crew.length} agents working</span>`;
+  const bits = [`${left} waiting`, `${done} done`];
+  if (fail) bits.push(`<span class="is-bad">${fail} no-commit</span>`);
+  setHTML($('#now'), `${lead} <span class="task">· ${bits.join(' · ')}</span>`);
 }
 
 // ---------------------------------------------------------------- project list
@@ -147,16 +138,18 @@ function observe(el) {
   OBS.observe(el);
 }
 const STORDER = {running: 0, stalled: 1, waiting: 2, idle: 3, paused: 4};
+const CHEV = '<svg class="chev" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>';
+// Minimalist vertical project list.
 function renderList() {
-  const grid = $('#plist');
+  const box = $('#plist');
   if (!DATA.length) {
     ROWS.clear();
-    setHTML(grid, `<div class="pempty">No projects yet. Press <b>Add project</b> above,
+    setHTML(box, `<div class="lempty">No projects yet. Press the <b>+</b> above,
       or run <code>bash ~/agent-team/add-project.sh /path/to/repo</code>.</div>`);
-    grid._empty = true;
+    box._empty = true;
     return;
   }
-  if (grid._empty) { grid.innerHTML = ''; grid._empty = false; }
+  if (box._empty) { box.innerHTML = ''; box._empty = false; }
   const sorted = [...DATA].sort((a, b) =>
     (STORDER[a.status] - STORDER[b.status]) || a.name.localeCompare(b.name));
   const seen = new Set();
@@ -166,19 +159,60 @@ function renderList() {
     if (!c) {
       c = document.createElement('button');
       c.dataset.sel = p.name;
-      c.innerHTML = '<span class="nm"></span><div><span class="st"></span><span class="meter"><i></i></span></div>';
+      c.innerHTML = `<span class="nm"></span><span class="meter"><i></i></span><span class="st"></span>${CHEV}`;
       ROWS.set(p.name, c);
-      observe(c);
     }
-    c.className = 'pcard s-' + p.status + (c.classList.contains('in') ? ' in' : '');
+    c.className = 'prow s-' + p.status;
     setText($('.nm', c), p.name);
     setText($('.st', c), statusText(p));
     const tot = p.tasks.done + p.tasks.doing + p.tasks.todo;
     $('i', c).style.width = (tot ? p.tasks.done / tot * 100 : 0) + '%';
+    $('.meter', c).style.visibility = tot ? 'visible' : 'hidden';
     c.setAttribute('aria-label', `${p.name}, ${statusText(p)}, ${p.tasks.done} of ${tot} tasks done`);
-    if (grid.children[i] !== c) grid.insertBefore(c, grid.children[i] || null);
+    if (box.children[i] !== c) box.insertBefore(c, box.children[i] || null);
   });
   for (const [n, c] of ROWS) if (!seen.has(n)) { c.remove(); ROWS.delete(n); }
+}
+// All waiting / in-progress tasks, across projects.
+function renderTaskPanel() {
+  const box = $('#tasklist');
+  const rows = [];
+  DATA.forEach(p => (p.all_tasks || []).forEach(t => {
+    if (t.state === ' ' || t.state === '~')
+      rows.push({proj: p.name, text: t.text, doing: t.state === '~'});
+  }));
+  setHTML(box, rows.length ? rows.map(r => `<div class="trow">
+      <span class="tt">${esc(r.text)}</span><span class="tp">${esc(r.proj)}</span>
+      ${r.doing ? '<span class="ts doing">In progress</span>' : ''}</div>`).join('')
+    : '<div class="lempty">No tasks waiting. Open a project and hold a meeting to plan some.</div>');
+}
+// Recent activity across the crew.
+function renderFeed() {
+  const box = $('#feed');
+  const rows = [];
+  DATA.forEach(p => working(p).forEach(a => rows.push({k: 0, a, p: p.name, t: p.agents[a].task || 'working'})));
+  DATA.forEach(p => { if (p.status === 'waiting' && p.next_task) rows.push({k: 1, a: '', p: p.name, t: p.next_task}); });
+  DATA.forEach(p => (p.progress || []).slice(-1).forEach(l => {
+    const m = l.match(/\|\s*(claude|agy)\s*\|\s*(.*)$/);
+    if (m) rows.push({k: 2, a: m[1], p: p.name, t: m[2]});
+  }));
+  rows.sort((x, y) => x.k - y.k);
+  const who = a => `<span class="t-${a}">${NAME[a]}</span>`;
+  const head = r => (r.k === 0 ? `${who(r.a)} working in ${esc(r.p)}`
+    : r.k === 1 ? `Next up in ${esc(r.p)}` : `Done by ${who(r.a)} in ${esc(r.p)}`);
+  setHTML(box, rows.length ? rows.slice(0, 40).map(r => `<div class="feedrow">
+      <span class="k${r.k ? '' : ' is-ok'}">${head(r)}</span>${esc(r.t)}</div>`).join('')
+    : '<div class="lempty">Nothing has happened yet.</div>');
+}
+// Fade the edges of a scroll area only when there is more to scroll to.
+function updateFade(wrap) {
+  const el = wrap && $('.fadescroll', wrap);
+  if (!el) return;
+  wrap.classList.toggle('more-up', el.scrollTop > 4);
+  wrap.classList.toggle('more-down', el.scrollTop + el.clientHeight < el.scrollHeight - 4);
+}
+function updateFades() {
+  document.querySelectorAll('#view-ops .scrollwrap').forEach(w => { if (!w.hidden) updateFade(w); });
 }
 
 // ---------------------------------------------------------------- one project
@@ -328,9 +362,6 @@ function renderDetail() {
   }
   updateProject(c, byName(name));
 }
-
-// The live activity feed was removed with the side column; this is now a no-op.
-function renderFeed() {}
 function renderModels() {
   const box = $('#models');
   const sig = JSON.stringify(MODELS);
@@ -354,6 +385,24 @@ function renderModels() {
   if (document.activeElement !== n && !n._dirty && n.value !== (SET.session_note || '')) { n.value = SET.session_note || ''; grow(n); }
 }
 function grow(t) { if (!t || t.tagName !== 'TEXTAREA') return; t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; }
+
+// The lean bottom status bar.
+function renderStatusBar() {
+  const sum = f => DATA.reduce((n, p) => n + (f(p) || 0), 0);
+  const commits = sum(p => (p.work || {}).total);
+  const done = sum(p => p.tasks.done);
+  const wait = sum(p => p.tasks.todo);
+  const facts = sum(p => (p.graph || {}).facts);
+  const fail = sum(p => (p.work || {}).failed);
+  setText($('#sb-proj'), String(DATA.length));
+  setText($('#sb-commits'), String(commits));
+  setText($('#sb-done'), String(done));
+  setText($('#sb-wait'), String(wait));
+  setText($('#sb-facts'), String(facts));
+  setText($('#sb-fail'), String(fail));
+  $('#sb-failwrap').hidden = !fail;
+  $('#sb-faildot').hidden = !fail;
+}
 
 // ---------------------------------------------------------------- overlay
 async function openFile(f, label) {
@@ -740,10 +789,17 @@ const DO = {
   tab(btn) { go(btn.dataset.tab === 'ws' ? '#/workspace' : SEL ? '#/p/' + encodeURIComponent(SEL) : '#/'); },
   back() { go('#/'); },
   toggleScan() {
-    const box = $('#scan'), opener = $('[data-do="toggleScan"][aria-controls]');
+    const box = $('#scan');
+    $('#modelbox').hidden = true;
     box.hidden = !box.hidden;
-    opener.setAttribute('aria-expanded', String(!box.hidden));
     if (!box.hidden) { $('#newpath').focus(); scanRepos(); }
+  },
+  toggleModels() { $('#scan').hidden = true; $('#modelbox').hidden = !$('#modelbox').hidden; },
+  rtab(btn) {
+    const rt = btn.dataset.rt;
+    document.querySelectorAll('.rtab').forEach(b => b.setAttribute('aria-selected', String(b === btn)));
+    document.querySelectorAll('#opsmain .scrollwrap').forEach(w => { w.hidden = w.dataset.panel !== rt; });
+    updateFades();
   },
   addManual() { const i = $('#newpath'); if (i.value.trim()) { addProject(i.value.trim()); i.value = ''; } },
   addProject(btn) { addProject(btn.dataset.path); },
@@ -911,7 +967,11 @@ addEventListener('hashchange', route);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !$('#view-ws').hidden) wsRefresh();
 });
-WIDE.addEventListener('change', () => { renderList(); renderDetail(); });
+// Fade edges follow scrolling (scroll doesn't bubble, so listen in capture).
+$('#view-ops').addEventListener('scroll', e => {
+  const w = e.target.closest && e.target.closest('.scrollwrap');
+  if (w) updateFade(w);
+}, true);
 
 // ---------------------------------------------------------------- refresh
 async function tick() {
@@ -923,7 +983,8 @@ async function tick() {
     const raw = await r.json();
     DATA = raw.projects || []; MODELS = raw.models || {}; SET = raw.settings || {};
     LOADED = true;
-    renderHero(); renderList(); renderDetail(); renderFeed(); renderModels();
+    renderHero(); renderList(); renderTaskPanel(); renderFeed(); renderDetail(); renderModels();
+    renderStatusBar(); updateFades();
     setText($('#sub'), 'Updated ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'}));
   } catch (e) {
     setText($('#sub'), 'Lost the dashboard. Retrying…');

@@ -15,51 +15,75 @@
 </head>
 <body>
 <header class="topbar">
-  <a class="mark" href="#/">AGX</a>
   <nav class="views" role="tablist" aria-label="Views">
-    <button role="tab" id="tab-ops" aria-controls="view-ops" aria-selected="true" data-do="tab" data-tab="ops">Operations</button>
+    <button role="tab" id="tab-ops" aria-controls="view-ops" aria-selected="true" data-do="tab" data-tab="ops">Root</button>
     <button role="tab" id="tab-ws" aria-controls="view-ws" aria-selected="false" data-do="tab" data-tab="ws">Workspace</button>
   </nav>
-  <p class="updated" id="sub">Connecting…</p>
 </header>
+<div class="brandband"><a class="mark" href="#/">AGX</a></div>
 
 <div id="view-ops" role="tabpanel" aria-labelledby="tab-ops">
-  <div id="opslist">
-    <section class="ohero" aria-label="Your crew">
-      <h1 class="now" id="now" aria-live="polite">Checking on the crew…</h1>
-      <p class="totals" id="totals"></p>
-      <div class="focusrow">
-        <label class="sr" for="note">Your focus</label>
-        <input type="text" id="note" placeholder="What you're working on — kept between sessions">
+  <div class="root-top">
+    <div class="root-actions" role="group" aria-label="Whole team">
+      <button class="iconbtn primary" data-act="cycle" data-tip="Auto cycle — decide and work" aria-label="Auto cycle">
+        <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-2.6-6.4"/><path d="M21 4v4h-4"/></svg></button>
+      <button class="iconbtn" data-act="team" data-tip="Run team" aria-label="Run team">
+        <svg viewBox="0 0 24 24"><path d="M6 4l13 8-13 8z"/></svg></button>
+      <a class="iconbtn" href="/office" target="_blank" rel="noopener" data-tip="Pixel office" aria-label="Pixel office">
+        <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg></a>
+      <button class="iconbtn" data-do="toggleScan" data-tip="Add project" aria-label="Add project" aria-controls="scan">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="iconbtn" data-do="toggleModels" data-tip="Models per agent" aria-label="Models per agent">
+        <svg viewBox="0 0 24 24"><path d="M4 7h11M19 7h1M4 17h5M13 17h7"/><circle cx="16" cy="7" r="2.3"/><circle cx="10" cy="17" r="2.3"/></svg></button>
+      <span class="root-grow"></span>
+      <button class="iconbtn danger" data-act="stop_all" data-tip="Stop everything" aria-label="Stop everything">
+        <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+    </div>
+    <p class="root-status" id="now" aria-live="polite">Checking on the crew…</p>
+    <input type="text" id="note" class="root-focus" placeholder="Focus — what you're working on, kept between sessions" aria-label="Your focus">
+    <div class="pop scan" id="scan" hidden>
+      <div class="row">
+        <input type="text" id="newpath" class="grow" placeholder="Path to a git repo, e.g. ~/Projects/mailflow" aria-label="Path of a project to add">
+        <button data-do="addManual">Add path</button>
+        <button class="plain" data-do="toggleScan">Close</button>
       </div>
-      <div class="oactions" role="group" aria-label="Whole team">
-        <button class="primary" data-act="cycle">Auto cycle</button>
-        <button data-act="team">Run team</button>
-        <a class="btn" href="/office" target="_blank" rel="noopener">Pixel office</a>
-        <button data-do="toggleScan" aria-expanded="false" aria-controls="scan">Add project</button>
-        <button class="danger" data-act="stop_all">Stop everything</button>
-      </div>
-      <div class="scan" id="scan" hidden>
-        <div class="row">
-          <input type="text" id="newpath" class="grow" placeholder="Path to a git repo, e.g. ~/Projects/mailflow" aria-label="Path of a project to add">
-          <button data-do="addManual">Add path</button>
-          <button class="plain" data-do="toggleScan">Close</button>
-        </div>
-        <div id="scanlist"></div>
-      </div>
-    </section>
+      <div id="scanlist"></div>
+    </div>
+    <div class="pop modelbox" id="modelbox" hidden><div id="models"></div></div>
+  </div>
 
-    <main id="plist" class="pgrid" aria-label="Projects"></main>
-
-    <details class="opsettings">
-      <summary>Models per agent</summary>
-      <div id="models"></div>
-    </details>
+  <div id="opsmain">
+    <nav class="root-tabs" role="tablist" aria-label="Root views">
+      <button class="rtab on" role="tab" aria-selected="true" data-do="rtab" data-rt="projects">Projects</button>
+      <button class="rtab" role="tab" aria-selected="false" data-do="rtab" data-rt="tasks">Tasks</button>
+      <button class="rtab" role="tab" aria-selected="false" data-do="rtab" data-rt="activity">Activity</button>
+    </nav>
+    <div class="root-body">
+      <div class="scrollwrap" data-panel="projects"><div class="fadescroll" id="plist" aria-label="Projects"></div></div>
+      <div class="scrollwrap" data-panel="tasks" hidden><div class="fadescroll" id="tasklist"></div></div>
+      <div class="scrollwrap" data-panel="activity" hidden><div class="fadescroll" id="feed"></div></div>
+    </div>
   </div>
 
   <div id="opsdetail">
-    <main class="detail" id="detail"></main>
+    <div class="scrollwrap"><div class="fadescroll" id="detail"></div></div>
   </div>
+
+  <footer class="statusbar" id="statusbar" aria-label="Totals">
+    <span class="sb-item"><b id="sb-proj">—</b><span>projects</span></span>
+    <span class="sb-dot"></span>
+    <span class="sb-item"><b id="sb-commits">—</b><span>commits</span></span>
+    <span class="sb-dot"></span>
+    <span class="sb-item"><b id="sb-done">—</b><span>tasks done</span></span>
+    <span class="sb-dot"></span>
+    <span class="sb-item"><b id="sb-wait">—</b><span>waiting</span></span>
+    <span class="sb-dot"></span>
+    <span class="sb-item"><b id="sb-facts">—</b><span>facts</span></span>
+    <span class="sb-dot bad-dot" id="sb-faildot" hidden></span>
+    <span class="sb-item bad" id="sb-failwrap" hidden><b id="sb-fail">0</b><span>no-commit</span></span>
+    <span class="sb-grow"></span>
+    <span class="sb-updated" id="sub">Connecting…</span>
+  </footer>
 </div>
 
 <div id="view-ws" role="tabpanel" aria-labelledby="tab-ws" hidden>
